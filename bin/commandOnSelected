@@ -5,19 +5,35 @@ readonly scriptFilespec="${BASH_SOURCE[0]}"
 printUsage()
 {
     cat <<HELPTEXT
-Read entries from stdin (one per line), show a (numbered) list of them to the
-user, and ask for selections (or allow further filtering of the list). The
+Read entries (one per line) from GENERATOR, show a (numbered) list of them to
+the user, and ask for selections (or allow further filtering of the list). The
 selected ones are then passed to the COMMAND [or printed].
 HELPTEXT
-printf 'Usage: ... | %q %s\n' "$(basename "$1")" '[COMMAND ...] [-?|-h|--help]'
+printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '[COMMAND ...] [-?|-h|--help]'
+printf 'Usage: %q %s\n' "$(basename "$1")" '[COMMAND ...] \; GENERATOR ... [-?|-h|--help]'
 }
-case "$1" in
-    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-esac
 
+typeset -a command=()
+typeset -a generator=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	\;)		shift; generator=("$@"); break;;
+	*)		command+=("$1")
+			shift
+			;;
+    esac
+done
 
-mapfile -t filespecs
-exec 0</dev/tty
+if [ ${#generator[@]} -eq 0 ]; then
+    mapfile -t filespecs
+    exec 0</dev/tty
+else
+    IFS=$'\n'
+    typeset -a filespecs=($("${generator[@]}"))
+    IFS=
+fi
 
 if [ ${#filespecs[@]} -eq 0 ]; then
     exit 0
@@ -46,5 +62,5 @@ fi
 
 [ ${#selectedFilespecs[@]} -eq 0 ] && exit 1
 
-[ $# -eq 0 ] && set -- printf '%s\n'
-exec "$@" "${selectedFilespecs[@]}"
+[ ${#command[@]} -eq 0 ] && command=(printf '%s\n')
+exec "${command[@]}" "${selectedFilespecs[@]}"
