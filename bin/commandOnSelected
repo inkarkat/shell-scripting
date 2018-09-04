@@ -48,7 +48,7 @@ else
 	elif [ "$REPLY" = '.' ]; then
 	    break
 	elif [ "$REPLY" = '?' ]; then
-	    cat <<-'EOF'
+	    cat >&2 <<-'EOF'
 		Enter each number (one after the other) to select the entry.
 		Conclude by pressing Ctrl-D or entering "."
 		Filter the list by entering "grep" arguments. (Double backslashes.)
