@@ -30,9 +30,10 @@ if [ ${#generator[@]} -eq 0 ]; then
     mapfile -t filespecs
     { exec 0</dev/tty; } 2>/dev/null || exit $?
 else
+    saveIFS=$IFS
     IFS=$'\n'
     typeset -a filespecs=($("${generator[@]}"))
-    IFS=
+    IFS=$saveIFS
 fi
 
 if [ ${#filespecs[@]} -eq 0 ]; then
