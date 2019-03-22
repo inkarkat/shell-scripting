@@ -43,14 +43,14 @@ do
     esac
 done
 
-isFirst=t
+isFirstSelection=t
 isSubtract=
 typeset -a selected=()
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--)			shift; break;;
-	//)			if [ "$isFirst" ]; then shift; isSubtract=t; fi
+	//)			if [ "$isFirstSelection" ]; then shift; isSubtract=t; fi
 				break
 				;;
 	?([/-])+([0-9]))	selected+=("$1"); shift;;
@@ -86,6 +86,7 @@ if [ ${#entries[@]} -eq 0 ]; then
 elif [ ${#entries[@]} -eq 1 -a -n "$isAcceptSingle" ]; then
     typeset -a selectedEntries=("${entries[@]}")
 else
+    isFirst=t
     typeset -a selectedEntries=()
     invertCandidates()
     {
@@ -108,10 +109,24 @@ else
 		//) invertCandidates "$@"; break;;
 		\?) cat >&2 <<-'EOF'
 		    Enter each number (one after the other) to select the entry.
+		    You can also use ranges (2-5); negative numbers select from the end.
+		    /N selects all but entry N.
 		    Filter the list by entering "grep" arguments. (Double backslashes.)
 		    Conclude by pressing Ctrl-D or entering "."
 		    Take the inversion (i.e. all not selected entries) by entering "//"
 EOF
+		    ;;
+		[/-]+([0-9]))
+		    selected=("$REPLY")
+		    selectByCounts "$@"
+		    ;;
+		+([0-9])-+([0-9]))
+		    eval "selected=({${REPLY/-/..}})"
+		    selectByCounts "$@"
+		    ;;
+		/+([0-9])-+([0-9]))
+		    range="${REPLY#/}"; eval "selected=(/{${range/-/..}})"
+		    selectByCounts "$@"
 		    ;;
 		*)  local IFS=$'\n'
 		    typeset -a filteredEntries=($(printf '%s\n' "$@" | grep $REPLY))
@@ -124,7 +139,6 @@ EOF
     }
     selectByCounts()
     {
-	local isFirst=t
 	local s
 	for s in "${selected[@]}"
 	do
