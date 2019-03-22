@@ -91,7 +91,7 @@ else
 	do
 	    contains "$entry" "${selectedEntries[@]}" || invertedEntries+=("$entry")
 	done
-	selectedEntries=("${invertedEntries[@]}")
+	selectedEntries+=("${invertedEntries[@]}")
     }
     selectCandidates()
     {
