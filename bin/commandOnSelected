@@ -115,6 +115,17 @@ else
 		    Conclude by pressing Ctrl-D or entering "."
 		    Take the inversion (i.e. all not selected entries) by entering "//"
 EOF
+		    if [ ${#selectedEntries[@]} -eq 0 ]; then
+			echo >&2 'Nothing selected yet.'
+		    else
+			local IFS=' '
+			printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "${selectedEntries[*]}"
+		    fi
+		    ;;
+		+([0-9]))
+		    entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
+		    filterNote=; [ $# -lt ${#entries[@]} ] && filterNote=' filtered'
+		    printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
 		    ;;
 		[/-]+([0-9]))
 		    selected=("$REPLY")
@@ -130,8 +141,12 @@ EOF
 		    ;;
 		*)  local IFS=$'\n'
 		    typeset -a filteredEntries=($(printf '%s\n' "$@" | grep $REPLY))
-		    selectCandidates "${filteredEntries[@]}"
-		    break
+		    if [ ${#filteredEntries[@]} -eq 0 ]; then
+			echo >&2 "No results from filtering."
+		    else
+			selectCandidates "${filteredEntries[@]}"
+			break
+		    fi
 		    ;;
 	    esac; fi
 	done
@@ -160,7 +175,7 @@ EOF
 
 	    if [ $count -lt 1 -o $count -gt $# ]; then
 		entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
-		printf >&2 'Only %d entr%s.\n' "$#" "$entryPlural"
+		printf >&2 'Only %d entr%s.\n' $# "$entryPlural"
 		exit 2
 	    fi
 
@@ -183,5 +198,5 @@ fi
 
 [ ${#selectedEntries[@]} -eq 0 ] && exit 125
 
-[ "$command" ] || command="printf '%s\n'"
-eval "$command" '"${selectedEntries[@]}"'
+[ "$targetCommand" ] || targetCommand="printf '%s\n'"
+eval "$targetCommand" '"${selectedEntries[@]}"'
