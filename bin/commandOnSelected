@@ -8,7 +8,8 @@ Read entries (one per line) from GENERATOR / standard input / passed ENTRIES
 (which are passed to GENERATOR for further filtering unless FILTER is given, in
 which case it is passed to it, or taken as-is if FILTER is empty).
 If SELECTIONs are passed, the resulting entries are selected from them.
-Selection works by numbers, starting with 1 for the first entry; negative
+Selection works by numbers, starting with 1 for the first entry; you can also
+use ranges (2-5) here (instead of relying on brace expansion {2..5}); negative
 numbers select from the end, so -1 is the last one. /N selects all but entry N;
 // starts interactive subtraction from all passed entries.
 Without SELECTIONs, show a (numbered) list of them to the user (or accept a
@@ -48,12 +49,14 @@ typeset -a selected=()
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--)		    shift; break;;
-	//)		    if [ "$isFirst" ]; then shift; isSubtract=t; fi
-			    break
-			    ;;
-	?([/-])+([0-9]))    selected+=("$1"); shift;;
-	*)		    break;;
+	--)			shift; break;;
+	//)			if [ "$isFirst" ]; then shift; isSubtract=t; fi
+				break
+				;;
+	?([/-])+([0-9]))	selected+=("$1"); shift;;
+	+([0-9])-+([0-9]))	eval "selected+=({${1/-/..}})"; shift;;
+	/+([0-9])-+([0-9]))	range="${1#/}"; eval "selected+=(/{${range/-/..}})"; shift;;
+	*)			break;;
     esac
 done
 
