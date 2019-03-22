@@ -58,6 +58,7 @@ do
 	/+([0-9])-+([0-9]))	range="${1#/}"; eval "selected+=(/{${range/-/..}})"; shift;;
 	*)			break;;
     esac
+    isFirstSelection=
 done
 
 typeset -a entries=()
