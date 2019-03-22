@@ -1,67 +1,172 @@
 #!/bin/bash
-
-readonly scriptFilespec="${BASH_SOURCE[0]}"
+shopt -qs extglob
 
 printUsage()
 {
     cat <<HELPTEXT
-Read entries (one per line) from GENERATOR, show a (numbered) list of them to
-the user, and ask for selections (or allow further filtering of the list). The
-selected ones are then passed to the COMMAND [or printed].
+Read entries (one per line) from GENERATOR / standard input / passed ENTRIES
+(which are passed to GENERATOR for further filtering unless FILTER is given, in
+which case it is passed to it, or taken as-is if FILTER is empty).
+If SELECTIONs are passed, the resulting entries are selected from them.
+Selection works by numbers, starting with 1 for the first entry; negative
+numbers select from the end, so -1 is the last one. /N selects all but entry N;
+// starts interactive subtraction from all passed entries.
+Without SELECTIONs, show a (numbered) list of them to the user (or accept a
+single available ENTRY if --accept-single is given), and ask for selections (or
+allow further filtering of the list, or invert the selection via //).
+The selected entries are then passed to the COMMAND [or printed].
+Exits with 2 if a bad selection was made, 124 if there are no entries available,
+125 if no entries were selected.
 HELPTEXT
-printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '[COMMAND ...] [-?|-h|--help]'
-printf 'Usage: %q %s\n' "$(basename "$1")" '[COMMAND ...] \; GENERATOR ... [-?|-h|--help]'
+printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-c|--command COMMAND] [--] [ENTRIES] [--] [SELECTION ...] [-?|-h|--help]"
+printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-c ...] [-?|-h|--help]'
 }
 
-typeset -a command=()
-typeset -a generator=()
+isAcceptSingle=
+isStdin=
+targetCommand=
+generator=
+unset filter
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-	\;)		shift; generator=("$@"); break;;
-	*)		command+=("$1")
-			shift
-			;;
+	--help|-h|-\?)	    shift; printUsage "$0"; exit 0;;
+	--accept-single)    shift; isAcceptSingle=t;;
+	--stdin)	    shift; isStdin=t;;
+	--generator|-g)	    shift; generator="$1"; shift;;
+	--filter|-f)	    shift; filter="$1"; shift;;
+	--command|-c)	    shift; targetCommand="$1"; shift;;
+	--)		    shift; break;;
+	-[^0-9]*)	    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		    break;
     esac
 done
 
-if [ ${#generator[@]} -eq 0 ]; then
-    mapfile -t filespecs
+isFirst=t
+isSubtract=
+typeset -a selected=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--)		    shift; break;;
+	//)		    if [ "$isFirst" ]; then shift; isSubtract=t; fi
+			    break
+			    ;;
+	?([/-])+([0-9]))    selected+=("$1"); shift;;
+	*)		    break;;
+    esac
+done
+
+typeset -a entries=()
+if [ $# -gt 0 ]; then
+    entries=("$@")
+elif [ "$isStdin" ]; then
+    mapfile -t entries
     { exec 0</dev/tty; } 2>/dev/null || exit $?
+fi
+
+if [ ${#entries[@]} -gt 0 -a -n "${filter+t}" ]; then
+    entrySource="$filter"
 else
+    entrySource="$generator"
+fi
+if [ "$entrySource" ]; then
     saveIFS=$IFS
     IFS=$'\n'
-    typeset -a filespecs=($("${generator[@]}"))
+    entries=($(eval "$entrySource" "${entries[@]}"))
     IFS=$saveIFS
 fi
 
-if [ ${#filespecs[@]} -eq 0 ]; then
-    exit 0
-elif [ ${#filespecs[@]} -eq 1 ]; then
-    typeset -a selectedFilespecs=("${filespecs[@]}")
+
+if [ ${#entries[@]} -eq 0 ]; then
+    exit 124
+elif [ ${#entries[@]} -eq 1 -a -n "$isAcceptSingle" ]; then
+    typeset -a selectedEntries=("${entries[@]}")
 else
-    typeset -a selectedFilespecs=()
-    select filespec in "${filespecs[@]}"
-    do
-	if [ "$filespec" ]; then
-	    selectedFilespecs+=("$filespec")
-	elif [ "$REPLY" = '.' ]; then
-	    break
-	elif [ "$REPLY" = '?' ]; then
-	    cat >&2 <<-'EOF'
-		Enter each number (one after the other) to select the entry.
-		Conclude by pressing Ctrl-D or entering "."
-		Filter the list by entering "grep" arguments. (Double backslashes.)
+    typeset -a selectedEntries=()
+    invertCandidates()
+    {
+	typeset -a invertedEntries=()
+	for entry
+	do
+	    contains "$entry" "${selectedEntries[@]}" || invertedEntries+=("$entry")
+	done
+	selectedEntries=("${invertedEntries[@]}")
+    }
+    selectCandidates()
+    {
+	local entry
+	select entry
+	do
+	    if [ "$entry" ]; then
+		selectedEntries+=("$entry")
+	    elif [ "$REPLY" = '.' ]; then
+		break
+	    elif [ "$REPLY" = '//' ]; then
+		invertCandidates "$@"
+		break
+	    elif [ "$REPLY" = '?' ]; then
+		cat >&2 <<-'EOF'
+		    Enter each number (one after the other) to select the entry.
+		    Filter the list by entering "grep" arguments. (Double backslashes.)
+		    Conclude by pressing Ctrl-D or entering "."
+		    Take the inversion (i.e. all not selected entries) by entering "//"
 EOF
-	else
-	    printf '%s\n' "${filespecs[@]}" | grep $REPLY | "$scriptFilespec" "$@"
-	    exit $?
-	fi
-    done
+	    else
+		local IFS=$'\n'
+		typeset -a filteredEntries=($(printf '%s\n' "$@" | grep $REPLY))
+		selectCandidates "${filteredEntries[@]}"
+		break
+	    fi
+	done
+	[ "$isSubtract" ] && invertCandidates "$@"
+    }
+    selectByCounts()
+    {
+	local isFirst=t
+	local s
+	for s in "${selected[@]}"
+	do
+	    local isSubtract=
+	    local count
+	    case "$s" in
+		/*)	[ "$isFirst" ] && selectedEntries=("$@")
+			isSubtract=t
+			if [ "${s:1:1}" = '-' ]; then
+			    count=$(($# - ${s:2} + 1))
+			else
+			    count=${s:1}
+			fi
+			;;
+		-*)	count=$(($# - ${s:1} + 1));;
+		*)	count=$s;;
+	    esac
+	    isFirst=
+
+	    if [ $count -lt 1 -o $count -gt $# ]; then
+		entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
+		printf >&2 'Only %d entr%s.\n' "$#" "$entryPlural"
+		exit 2
+	    fi
+
+	    if [ "$isSubtract" ]; then
+		let count-=1	# Array indexing is 0-based.
+		unset selectedEntries[$count]
+	    else
+		selectedEntries+=(${@:$count:1})
+	    fi
+	done
+    }
+
+    if [ ${#selected[@]} -eq 0 ]; then
+	selectCandidates "${entries[@]}"
+    else
+	selectByCounts "${entries[@]}"
+    fi
 fi
 
-[ ${#selectedFilespecs[@]} -eq 0 ] && exit 1
 
-[ ${#command[@]} -eq 0 ] && command=(printf '%s\n')
-exec "${command[@]}" "${selectedFilespecs[@]}"
+[ ${#selectedEntries[@]} -eq 0 ] && exit 125
+
+[ "$command" ] || command="printf '%s\n'"
+eval "$command" '"${selectedEntries[@]}"'
