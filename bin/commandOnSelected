@@ -103,24 +103,22 @@ else
 	do
 	    if [ "$entry" ]; then
 		selectedEntries+=("$entry")
-	    elif [ "$REPLY" = '.' ]; then
-		break
-	    elif [ "$REPLY" = '//' ]; then
-		invertCandidates "$@"
-		break
-	    elif [ "$REPLY" = '?' ]; then
-		cat >&2 <<-'EOF'
+	    else case "$REPLY" in
+		.)  break;;
+		//) invertCandidates "$@"; break;;
+		\?) cat >&2 <<-'EOF'
 		    Enter each number (one after the other) to select the entry.
 		    Filter the list by entering "grep" arguments. (Double backslashes.)
 		    Conclude by pressing Ctrl-D or entering "."
 		    Take the inversion (i.e. all not selected entries) by entering "//"
 EOF
-	    else
-		local IFS=$'\n'
-		typeset -a filteredEntries=($(printf '%s\n' "$@" | grep $REPLY))
-		selectCandidates "${filteredEntries[@]}"
-		break
-	    fi
+		    ;;
+		*)  local IFS=$'\n'
+		    typeset -a filteredEntries=($(printf '%s\n' "$@" | grep $REPLY))
+		    selectCandidates "${filteredEntries[@]}"
+		    break
+		    ;;
+	    esac; fi
 	done
 	[ "$isSubtract" ] && invertCandidates "$@"
     }
