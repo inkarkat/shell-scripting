@@ -11,7 +11,7 @@ Read entries (one per line) from GENERATOR / standard input / passed ENTRIES
 which case it is passed to it, or taken as-is if FILTER is empty).
 If SELECTIONs are passed, the resulting entries are selected from them.
 Selection works by numbers, starting with 1 for the first entry; you can also
-use ranges (2-5) here (instead of relying on brace expansion {2..5}); negative
+use ranges (2-5 or 3-; instead of relying on brace expansion {2..5}); negative
 numbers select from the end, so -1 is the last one. /N selects all but entry N;
 // starts interactive subtraction from all passed entries.${fuzzyTrigger:+
 $fuzzyTrigger starts selection via fuzzy matching (using fzf).}
@@ -63,6 +63,9 @@ do
 	?([/-])+([0-9]))	selected+=("$1"); shift;;
 	+([0-9])-+([0-9]))	eval "selected+=({${1/-/..}})"; shift;;
 	/+([0-9])-+([0-9]))	range="${1#/}"; eval "selected+=(/{${range/-/..}})"; shift;;
+	+([0-9])-)		if [ "$1" = '1-' ]; then echo >&2 "Cannot select all entries like this."; exit 2; fi
+				previous=$((${1%-} - 1)); eval "selected+=(/{1..$previous})"; shift
+				;;
 	*)			break;;
     esac
     isFirstSelection=
