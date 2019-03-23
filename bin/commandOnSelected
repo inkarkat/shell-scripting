@@ -1,6 +1,8 @@
 #!/bin/bash
 shopt -qs extglob
 
+fuzzyTrigger=; callable fzf && fuzzyTrigger=z
+
 printUsage()
 {
     cat <<HELPTEXT
@@ -11,7 +13,8 @@ If SELECTIONs are passed, the resulting entries are selected from them.
 Selection works by numbers, starting with 1 for the first entry; you can also
 use ranges (2-5) here (instead of relying on brace expansion {2..5}); negative
 numbers select from the end, so -1 is the last one. /N selects all but entry N;
-// starts interactive subtraction from all passed entries.
+// starts interactive subtraction from all passed entries.${fuzzyTrigger:+
+$fuzzyTrigger starts selection via fuzzy matching (using fzf).}
 Without SELECTIONs, show a (numbered) list of them to the user (or accept a
 single available ENTRY if --accept-single is given), and ask for selections (or
 allow further filtering of the list, or invert the selection via //).
@@ -44,6 +47,7 @@ do
 done
 
 isFirstSelection=t
+isFuzzySelection=
 isSubtract=
 typeset -a selected=()
 while [ $# -ne 0 ]
@@ -51,6 +55,9 @@ do
     case "$1" in
 	--)			shift; break;;
 	//)			if [ "$isFirstSelection" ]; then shift; isSubtract=t; fi
+				break
+				;;
+	${fuzzyTrigger:---})	if [ -n "$isFirstSelection" -a $# -eq 1 ]; then shift; isFuzzySelection=t; fi
 				break
 				;;
 	?([/-])+([0-9]))	selected+=("$1"); shift;;
@@ -108,13 +115,16 @@ else
 	    else case "$REPLY" in
 		.)  break;;
 		//) invertCandidates "$@"; break;;
-		\?) cat >&2 <<-'EOF'
+		${fuzzyTrigger:-.})
+		    selectFuzzy "$@"; break;;
+		\?) quote='"'; cat >&2 <<-EOF
 		    Enter each number (one after the other) to select the entry.
 		    You can also use ranges (2-5); negative numbers select from the end.
 		    /N selects all but entry N.
 		    Filter the list by entering "grep" arguments. (Double backslashes.)
 		    Conclude by pressing Ctrl-D or entering "."
-		    Take the inversion (i.e. all not selected entries) by entering "//"
+		    Take the inversion (i.e. all not selected entries) by entering "//"${fuzzyTrigger:+
+    Switch to fuzzy matching (using fzf) by entering ${quote}${fuzzyTrigger}${quote}}
 EOF
 		    if [ ${#selectedEntries[@]} -eq 0 ]; then
 			echo >&2 'Nothing selected yet.'
@@ -188,9 +198,18 @@ EOF
 	    fi
 	done
     }
+    selectFuzzy()
+    {
+	local IFS=$'\n'
+	selectedEntries+=($(printf '%s\n' "$@" | fzf --multi))
+    }
 
     if [ ${#selected[@]} -eq 0 ]; then
-	selectCandidates "${entries[@]}"
+	if [ "$isFuzzySelection" ]; then
+	    selectFuzzy "${entries[@]}"
+	else
+	    selectCandidates "${entries[@]}"
+	fi
     else
 	selectByCounts "${entries[@]}"
     fi
