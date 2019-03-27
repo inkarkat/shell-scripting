@@ -1,0 +1,47 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+You have a command that takes --color arguments, and it defaults to color output
+unless its output is piped into another command. Now you need to filter /
+further process the output, so there'll always be a pipe, but you want to
+maintain the original behavior of colored output to a terminal, or explicit
+enabling / disabling via passed command-line arguments. This command evaluates
+the color arguments (any other arguments are ignored) and whether a terminal is
+connected and returns whether color output should be forced.
+Usage:
+typeset -a colorArg=()
+# Parse any --color command-line arguments into colorArg array.
+HELPTEXT
+    printf '%q "${colorArg[@]}" && colorArg=(--color=always) || colorArg=()\n' "$(basename "$1")"
+    cat <<'HELPTEXT'
+# Note: We cannot directly return the color argument because command
+# substitution would redirect the output away from the terminal.
+COMMAND "${colorArg[@]}" "${otherArgs[@]}" "$@"
+HELPTEXT
+}
+
+typeset -a colorArg=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)		shift; printUsage "$0"; exit 0;;
+	--no-color|--color=*)	colorArg=("$1"); shift;;
+	--color)		colorArg=("$1" "$2"); shift; shift;;
+	--)			break;;
+	*)			shift;;
+    esac
+done
+
+determineColor()
+{
+    local firstArg="${colorArg[0]}"
+    case "$firstArg" in
+	--color=*)	printf "${firstArg#*=}";;
+	--no-color)	printf 'never';;
+	--color)	printf "${colorArg[1]}";;
+    esac
+}
+
+[ -t 1 ] || [ "$(determineColor)" = 'always' ] && [ "$(determineColor)" != 'never' ]
