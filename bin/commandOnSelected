@@ -87,7 +87,7 @@ fi
 if [ "$entrySource" ]; then
     saveIFS=$IFS
     IFS=$'\n'
-    entries=($(eval "$entrySource" "${entries[@]}"))
+    entries=($(eval "$entrySource" '"${entries[@]}"'))
     IFS=$saveIFS
 fi
 
