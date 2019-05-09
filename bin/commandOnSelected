@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o noglob
 shopt -qs extglob
 
 fuzzyTrigger=; callable fzf && fuzzyTrigger=z
@@ -7,7 +8,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-c|--command COMMAND] [--] [ENTRIES] [--] [SELECTION ...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-c|--command COMMANDLINE] [--] [ENTRIES] [--] [SELECTION ...] [-?|-h|--help]"
     printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-c ...] [-?|-h|--help]'
 }
 printUsage()
@@ -42,7 +43,7 @@ $fuzzyTrigger starts selection via fuzzy matching (using fzf).}
 Without SELECTIONs, show a (numbered) list of them to the user (or accept a
 single available ENTRY if --accept-single is given), and ask for selections (or
 allow further filtering of the list, or invert the selection via //).
-The selected entries are then passed to the COMMAND [or printed].
+The selected entries are then passed to the COMMANDLINE [or printed].
 
 EXIT STATUS
 Exits with 2 if a bad selection was made, 124 if there are no entries available,
