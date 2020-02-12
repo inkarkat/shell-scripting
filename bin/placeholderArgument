@@ -1,0 +1,27 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Execute COMMAND while replacing all occurrences of {} in its argument with the
+LAST-ARGUMENT. (Can be useful when xargs doesn't support the -I replace-str (as
+in Busybox xargs).)
+HELPTEXT
+    printf 'Usage: %q %s\n' "$(basename "$1")" 'COMMAND [ARG ...] LAST-ARGUMENT [-?|-h|--help]'
+}
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+esac
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+
+lastArg="${!#}"
+typeset -a args=("${@:1:$(($#-1))}")
+typeset -a interpolatedArgs=("${args[@]//\{\}/$lastArg}")
+if [ "${interpolatedArgs[*]}" = "${args[*]}" ]; then
+    printUsage >&2 "$0"
+    exit 2
+fi
+exec "${interpolatedArgs[@]}"
