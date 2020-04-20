@@ -227,7 +227,7 @@ EOF
 		let count-=1	# Array indexing is 0-based.
 		unset selectedEntries[$count]
 	    else
-		selectedEntries+=(${@:$count:1})
+		selectedEntries+=("${@:$count:1}")
 	    fi
 	done
     }
