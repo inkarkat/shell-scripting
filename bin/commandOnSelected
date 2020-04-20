@@ -139,6 +139,7 @@ else
 	done
 	selectedEntries=("${invertedEntries[@]}")
     }
+    typeset -a filters=()
     selectCandidates()
     {
 	local entry
@@ -147,7 +148,13 @@ else
 	    if [ "$entry" ]; then
 		selectedEntries+=("$entry")
 	    else case "$REPLY" in
-		.)  break;;
+		.)  case ${#filters[@]} in
+			0) ;;
+			1) echo >&2 "Back at full list of entries; press Enter to show again.";;
+			*) printf >&2 'Back at filter %s; press Enter to show filtered entries again.\n' "$(joinBy ' > ' "${filters[@]:0:$((${#filters[@]}-1))}")";;
+		    esac
+		    break
+		    ;;
 		//) invertCandidates "$@"; break;;
 		${fuzzyTrigger:-.})
 		    selectFuzzy "$@"; break;;
@@ -156,7 +163,7 @@ else
 		    You can also use ranges (2-5 or 3-); negative numbers select from the end.
 		    /N selects all but entry N.
 		    Filter the list by entering "grep" arguments. (Double backslashes.)
-		    Conclude by pressing Ctrl-D or entering "."
+		    Conclude (selection or filtering) by pressing Ctrl-D or entering "."
 		    Take the inversion (i.e. all not selected entries) by entering "//"${fuzzyTrigger:+
     Switch to fuzzy matching (using fzf) by entering ${quote}${fuzzyTrigger}${quote}}
 EOF
@@ -197,8 +204,9 @@ EOF
 		    if [ ${#filteredEntries[@]} -eq 0 ]; then
 			echo >&2 "No results from filtering."
 		    else
-			selectCandidates "${filteredEntries[@]}"
-			break
+			filters+=("$REPLY")
+			    selectCandidates "${filteredEntries[@]}"
+			filters=("${filters[@]:0:$((${#filters[@]}-1))}")
 		    fi
 		    ;;
 	    esac; fi
@@ -206,6 +214,7 @@ EOF
 	    [ ${#selectedEntries[@]} -eq 1 -a ! "$isMultiSelect" ] && break
 	done
 	[ "$isSubtract" ] && invertCandidates "$@"
+	shift
     }
     selectByCounts()
     {
