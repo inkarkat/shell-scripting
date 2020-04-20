@@ -136,7 +136,7 @@ else
 	do
 	    contains "$entry" "${selectedEntries[@]}" || invertedEntries+=("$entry")
 	done
-	selectedEntries+=("${invertedEntries[@]}")
+	selectedEntries=("${invertedEntries[@]}")
     }
     selectCandidates()
     {
@@ -198,7 +198,7 @@ EOF
 		    ;;
 	    esac; fi
 
-	    [ ${#selectedEntries[@]} -ge 1 -a ! "$isMultiSelect" ] && break
+	    [ ${#selectedEntries[@]} -eq 1 -a ! "$isMultiSelect" ] && break
 	done
 	[ "$isSubtract" ] && invertCandidates "$@"
     }
