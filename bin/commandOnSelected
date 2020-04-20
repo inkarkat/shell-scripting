@@ -253,7 +253,7 @@ fi
 
 typeset -a e=('"${selectedEntries[@]}"')
 if [ "$targetCommand" ]; then
-    typeset -a interpolatedCommand=("${targetCommand//\{\}/\"${selectedEntries[@]}\"}")
+    typeset -a interpolatedCommand=("${targetCommand//\{\}/'"${selectedEntries[@]}"'}")
     [ "$interpolatedCommand" = "$targetCommand" ] || e=()
 else
     typeset -a interpolatedCommand=("printf '%s\\n'")
