@@ -8,7 +8,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-c|--command \"COMMANDLINE\"] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [--single-only] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-c|--command \"COMMANDLINE\"] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
     printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-c ...] [-?|-h|--help]'
 }
 printUsage()
@@ -42,7 +42,9 @@ $fuzzyTrigger starts selection via fuzzy matching (using fzf).}
 
 Without SELECTIONs, show a (numbered) list of them to the user (or accept a
 single available ENTRY if --accept-single is given), and ask for selections (or
-allow further filtering of the list, or invert the selection via //).
+allow further filtering of the list, or invert the selection via //). With
+--single-only, the querying stops when at least one entry has been selected (and
+any additional ones are ignored and a warning is printed).
 The selected entries are then passed to the COMMANDLINE (either appended or
 replacing any {} marker) [or printed].
 
@@ -53,6 +55,7 @@ HELPTEXT
 }
 
 isAcceptSingle=
+isMultiSelect=t
 isStdin=
 targetCommand=
 generator=
@@ -62,6 +65,7 @@ do
     case "$1" in
 	--help|-h|-\?)	    shift; printLongUsage "$0"; exit 0;;
 	--accept-single)    shift; isAcceptSingle=t;;
+	--single-only)	    shift; isMultiSelect=;;
 	--stdin)	    shift; isStdin=t;;
 	--generator|-g)	    shift; generator="$1"; shift;;
 	--filter|-f)	    shift; filter="$1"; shift;;
@@ -120,7 +124,7 @@ fi
 
 if [ ${#entries[@]} -eq 0 ]; then
     exit 124
-elif [ ${#entries[@]} -eq 1 -a -n "$isAcceptSingle" ]; then
+elif [ ${#entries[@]} -eq 1 -a \( "$isAcceptSingle" -o ! "$isMultiSelect" \) ]; then
     typeset -a selectedEntries=("${entries[@]}")
 else
     isFirst=t
@@ -193,6 +197,8 @@ EOF
 		    fi
 		    ;;
 	    esac; fi
+
+	    [ ${#selectedEntries[@]} -ge 1 -a ! "$isMultiSelect" ] && break
 	done
 	[ "$isSubtract" ] && invertCandidates "$@"
     }
@@ -234,7 +240,7 @@ EOF
     selectFuzzy()
     {
 	local IFS=$'\n'
-	selectedEntries+=($(printf '%s\n' "$@" | fzf --multi))
+	selectedEntries+=($(printf '%s\n' "$@" | fzf ${isMultiSelect:+--multi}))
     }
 
     if [ ${#selected[@]} -eq 0 ]; then
@@ -250,6 +256,11 @@ fi
 
 
 [ ${#selectedEntries[@]} -eq 0 ] && exit 125
+
+if [ ! "$isMultiSelect" -a ${#selectedEntries[@]} -gt 1 ]; then
+    printf >&2 'Note: %d entries selected; ignoring all but the first.\n' "${#selectedEntries[@]}"
+    selectedEntries=("${selectedEntries[0]}")
+fi
 
 typeset -a e=('"${selectedEntries[@]}"')
 if [ "$targetCommand" ]; then
