@@ -140,6 +140,19 @@ else
 	selectedEntries=("${invertedEntries[@]}")
     }
     typeset -a filters=()
+    printCurrentFilter()
+    {
+	local prefix="${1:?}"; shift
+	case $# in
+	    0)	;;
+	    1)	echo >&2 "$prefix at full list of entries; press Enter to show again.";;
+	    *)	printf >&2 '%s at filter %s;\n%spress Enter to show entries again, Ctrl-D or "." to leave this filter.\n' \
+		    "$prefix" \
+		    "$(joinBy ' > ' "${@:1:$(($#-1))}")" \
+		    "${prefix%%+([^	 ])}"
+		;;
+	esac
+    }
     selectCandidates()
     {
 	local entry
@@ -148,13 +161,7 @@ else
 	    if [ "$entry" ]; then
 		selectedEntries+=("$entry")
 	    else case "$REPLY" in
-		.)  case ${#filters[@]} in
-			0) ;;
-			1) echo >&2 "Back at full list of entries; press Enter to show again.";;
-			*) printf >&2 'Back at filter %s; press Enter to show filtered entries again.\n' "$(joinBy ' > ' "${filters[@]:0:$((${#filters[@]}-1))}")";;
-		    esac
-		    break
-		    ;;
+		.)  printCurrentFilter 'Back' "${filters[@]}"; break;;
 		//) invertCandidates "$@"; break;;
 		${fuzzyTrigger:-.})
 		    selectFuzzy "$@"; break;;
@@ -167,11 +174,12 @@ else
 		    Take the inversion (i.e. all not selected entries) by entering "//"${fuzzyTrigger:+
     Switch to fuzzy matching (using fzf) by entering ${quote}${fuzzyTrigger}${quote}}
 EOF
+		    printCurrentFilter '    Currently' "${filters[@]}" ''
 		    if [ ${#selectedEntries[@]} -eq 0 ]; then
 			echo >&2 'Nothing selected yet.'
 		    else
 			local IFS=' '
-			printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "${selectedEntries[*]}"
+			printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "$(joinBy ', ' "${selectedEntries[@]}")"
 		    fi
 		    ;;
 		+([0-9]))
