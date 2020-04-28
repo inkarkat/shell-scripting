@@ -194,11 +194,11 @@ EOF
 			filterNote=; [ $# -lt ${#entries[@]} ] && filterNote=' filtered'
 			printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
 			;;
-		    +([-0-9])+([- 0-9])*( ).)
+		    ?(-)+([0-9])+( ?(-)+([0-9]))*( ).)
 			REPLY="${REPLY%*( ).}"
 			isBreak=t
 			;&
-		    +([-0-9])+([- 0-9]))
+		    ?(-)+([0-9])+( ?(-)+([0-9])))
 			eval "selected=($REPLY)"
 			selectByCounts "$@"
 			;;
