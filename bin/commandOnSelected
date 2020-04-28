@@ -160,64 +160,96 @@ else
 	do
 	    if [ "$entry" ]; then
 		selectedEntries+=("$entry")
-	    else case "$REPLY" in
-		.)  printCurrentFilter 'Back' "${filters[@]}"; break;;
-		//) invertCandidates "$@"; break;;
-		${fuzzyTrigger:-.})
-		    selectFuzzy "$@"; break;;
-		\?) quote='"'; cat >&2 <<-EOF
-		    Enter each number (one after the other) to select the entry.
-		    You can also use ranges (2-5 or 3-); negative numbers select from the end.
-		    /N selects all but entry N.
-		    Filter the list by entering "grep" arguments. (Double backslashes.)
-		    Conclude (selection or filtering) by pressing Ctrl-D or entering "."
-		    Take the inversion (i.e. all not selected entries) by entering "//"${fuzzyTrigger:+
+	    else
+		local isBreak=
+		case "$REPLY" in
+		    .)  isBreak=t;;
+		    //) invertCandidates "$@"; isBreak=t;;
+		    ${fuzzyTrigger:-.})
+			selectFuzzy "$@"; isBreak=t;;
+		    \?) quote='"'; cat >&2 <<-EOF
+			    Enter each number (one after the other) to select the entry.
+			    You can also use ranges (2-5 or 3-); negative numbers select from the end.
+			    /N selects all but entry N.
+			    Filter the list by entering "grep" arguments. (Double backslashes.)
+			    Conclude (selection or filtering) by appending "." to entered numbers or
+			    ranges, by pressing Ctrl-D or entering just a single "."
+			    Take the inversion (i.e. all not selected entries) by entering "//"${fuzzyTrigger:+
     Switch to fuzzy matching (using fzf) by entering ${quote}${fuzzyTrigger}${quote}}
 EOF
-		    printCurrentFilter '    Currently' "${filters[@]}" ''
-		    if [ ${#selectedEntries[@]} -eq 0 ]; then
-			echo >&2 'Nothing selected yet.'
-		    else
-			local IFS=' '
-			printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "$(joinBy ', ' "${selectedEntries[@]}")"
-		    fi
-		    ;;
-		+([0-9]))
-		    entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
-		    filterNote=; [ $# -lt ${#entries[@]} ] && filterNote=' filtered'
-		    printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
-		    ;;
-		+([-0-9])+([- 0-9]))
-		    eval "selected=($REPLY)"
-		    selectByCounts "$@"
-		    ;;
-		@(/?(-)|-)+([0-9]))
-		    selected=("$REPLY")
-		    selectByCounts "$@"
-		    ;;
-		+([0-9])-+([0-9]))
-		    eval "selected=({${REPLY/-/..}})"
-		    selectByCounts "$@"
-		    ;;
-		/+([0-9])-+([0-9]))
-		    range="${REPLY#/}"; eval "selected=(/{${range/-/..}})"
-		    selectByCounts "$@"
-		    ;;
-		+([0-9])-)
-		    eval "selected=({${REPLY%-}..$#})"
-		    selectByCounts "$@"
-		    ;;
-		*)  local IFS=$'\n'
-		    typeset -a filteredEntries=($(unset IFS; printf '%s\n' "$@" | grep $REPLY))
-		    if [ ${#filteredEntries[@]} -eq 0 ]; then
-			echo >&2 "No results from filtering."
-		    else
-			filters+=("$REPLY")
-			    selectCandidates "${filteredEntries[@]}"
-			filters=("${filters[@]:0:$((${#filters[@]}-1))}")
-		    fi
-		    ;;
-	    esac; fi
+			printCurrentFilter '    Currently' "${filters[@]}" ''
+			if [ ${#selectedEntries[@]} -eq 0 ]; then
+			    echo >&2 'Nothing selected yet.'
+			else
+			    local IFS=' '
+			    printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "$(joinBy ', ' "${selectedEntries[@]}")"
+			fi
+			;;
+		    +([0-9])*( ).)
+			selectedEntries+=("${@:${REPLY%*( ).}:1}")
+			isBreak=t
+			;;
+		    +([0-9]))
+			entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
+			filterNote=; [ $# -lt ${#entries[@]} ] && filterNote=' filtered'
+			printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
+			;;
+		    +([-0-9])+([- 0-9])*( ).)
+			REPLY="${REPLY%*( ).}"
+			isBreak=t
+			;&
+		    +([-0-9])+([- 0-9]))
+			eval "selected=($REPLY)"
+			selectByCounts "$@"
+			;;
+		    @(/?(-)|-)+([0-9])*( ).)
+			REPLY="${REPLY%*( ).}"
+			isBreak=t
+			;&
+		    @(/?(-)|-)+([0-9]))
+			selected=("$REPLY")
+			selectByCounts "$@"
+			;;
+		    +([0-9])-+([0-9])*( ).)
+			REPLY="${REPLY%*( ).}"
+			isBreak=t
+			;&
+		    +([0-9])-+([0-9]))
+			eval "selected=({${REPLY/-/..}})"
+			selectByCounts "$@"
+			;;
+		    /+([0-9])-+([0-9])*( ).)
+			REPLY="${REPLY%*( ).}"
+			isBreak=t
+			;&
+		    /+([0-9])-+([0-9]))
+			range="${REPLY#/}"; eval "selected=(/{${range/-/..}})"
+			selectByCounts "$@"
+			;;
+		    +([0-9])-*( ).)
+			REPLY="${REPLY%*( ).}"
+			isBreak=t
+			;&
+		    +([0-9])-)
+			eval "selected=({${REPLY%-}..$#})"
+			selectByCounts "$@"
+			;;
+		    *)  local IFS=$'\n'
+			typeset -a filteredEntries=($(unset IFS; printf '%s\n' "$@" | grep $REPLY))
+			if [ ${#filteredEntries[@]} -eq 0 ]; then
+			    echo >&2 "No results from filtering."
+			else
+			    filters+=("$REPLY")
+				selectCandidates "${filteredEntries[@]}"
+			    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
+			fi
+			;;
+		esac
+		if [ "$isBreak" ]; then
+		    printCurrentFilter 'Back' "${filters[@]}"
+		    break
+		fi
+	    fi
 
 	    [ ${#selectedEntries[@]} -eq 1 -a ! "$isMultiSelect" ] && break
 	done
