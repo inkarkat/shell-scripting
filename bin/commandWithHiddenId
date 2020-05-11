@@ -1,0 +1,144 @@
+#!/bin/bash
+set -o pipefail
+shopt -qs extglob
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [--] \"ID1 TITLE1\" [...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "-g|--generator GENERATOR [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\""
+    printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-p|--piped] -c|--command "COMMANDLINE"'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 'Try %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Read entries (one per line) consisting of ID + whitespace + TITLE from GENERATOR
+/ standard input / passed "ID1 TITLE1" "ID2 TITLE2" ... , split off IDs, make
+identical TITLEs unique by appending (2), (3), etc., then pass them to
+COMMANDLINE (either appended or replacing any {} marker, or with -p|--piped one
+per line via standard input), and capture its output. From these supposedly
+filtered TITLEs (no output at all is also accepted; to prevent that, add a grep
+command at the end of COMMANDLINE), translate back to the corresponding IDs and
+print them one per line.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    cat <<HELPTEXT
+
+If TITLE is completely missing (no whitespace separator after ID), ID is used.
+If TITLE is empty, that's an error.
+If no entries are passed, GENERATOR is invoked to generate them. Entries passed
+on the command-line are passed to GENERATOR for further filtering unless FILTER
+is given, in which case it is passed to it, or taken as-is if FILTER is empty.
+
+EXIT STATUS
+    Exits with the exit status of COMMANDLINE if it fails.
+    124 if there are no entries available
+    125 if an entry has a duplicate or empty ID or no TITLE
+    126 if COMMANDLINE has output something other than a TITLE
+HELPTEXT
+}
+
+isStdin=
+generator=
+unset filter
+isPiped=
+targetCommand=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	    shift; printLongUsage "$0"; exit 0;;
+	--stdin)	    shift; isStdin=t;;
+	--generator|-g)	    shift; generator="$1"; shift;;
+	--filter|-f)	    shift; filter="$1"; shift;;
+	--piped|-p)	    shift; isPiped=t;;
+	--command|-c)	    shift; targetCommand="$1"; shift;;
+	--)		    shift; break;;
+	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
+	*)		    break;;
+    esac
+done
+if [ -z "$targetCommand" ]; then
+    echo >&2 'ERROR: No -c|--command passed.'
+    echo >&2
+    printUsage "$0" >&2
+    exit 2
+fi
+
+set -o noglob
+IFS=$'\n'
+typeset -a entries=()
+if [ $# -gt 0 ]; then
+    entries=("${@//$'\n'/ }")
+elif [ "$isStdin" ]; then
+    mapfile -t entries
+fi
+
+if [ ${#entries[@]} -gt 0 -a -n "${filter+t}" ]; then
+    entrySource="$filter"
+else
+    entrySource="$generator"
+fi
+if [ "$entrySource" ]; then
+    entries=($(eval "$entrySource" '"${entries[@]}"'))
+fi
+[ ${#entries[@]} -eq 0 ] && exit 124
+
+typeset -a ids=("${entries[@]%%+([$'\t '])*}")
+typeset -a titles=($(printf '%s\n' "${entries[@]#*+([$'\t '])}" | makeLinesUnique))
+duplicateIds=($(printf '%s\n' "${ids[@]}" | sort | uniq --repeated))
+if [ ${#duplicateIds[@]} -gt 0 ]; then
+    printf >&2 'ERROR: Duplicate IDs: %s\n' "$(joinBy ', ' "${duplicateIds[@]}")"
+    exit 125
+elif printf '%s\n' "${ids[@]}" | grep --quiet -e '^[[:space:]]*$'; then
+    echo >&2 'ERROR: Empty ID(s).'
+    exit 125
+elif [ ${#titles[@]} -ne ${#ids[@]} ]; then
+    echo >&2 'ERROR: Empty TITLE(s).'
+    exit 125
+fi
+
+typeset -A titlesToIds=()
+for ((i = 0; i < ${#titles[@]}; i++))
+do
+    titlesToIds["${titles[$i]}"]="${ids[$i]}"
+done
+
+#**** echo >&2 "****" "${ids[@]}"
+#**** echo >&2 "****" "${titles[@]}"
+output=($(
+    if [ "$isPiped" ]; then
+	printf '%s\n' "${titles[@]}" | eval "$targetCommand"
+    else
+	typeset -a e=('"${titles[@]}"')
+	typeset -a interpolatedCommand=("${targetCommand//\{\}/'"${titles[@]}"'}")
+	[ "$interpolatedCommand" = "$targetCommand" ] || e=()
+	eval "$interpolatedCommand" "${e[@]}"
+    fi
+)) || exit $?
+
+#****echo >&2 "****" "${output[@]}"
+typeset -a selectedIds=()
+for outLine in "${output[@]}"
+do
+    selectedId="${titlesToIds["$outLine"]}"
+    if [ -z "$selectedId" ]; then
+	printf >&2 'ERROR: This COMMANDLINE output is not a TITLE: %q\n' "$outLine"
+	exit 126
+    fi
+
+    selectedIds+=("$selectedId")
+done
+if [ ${#selectedIds[@]} -gt 0 ]; then
+    printf '%s\n' "${selectedIds[@]}"
+fi
