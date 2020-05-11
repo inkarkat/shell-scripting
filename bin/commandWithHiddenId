@@ -115,8 +115,6 @@ do
     titlesToIds["${titles[$i]}"]="${ids[$i]}"
 done
 
-#**** echo >&2 "****" "${ids[@]}"
-#**** echo >&2 "****" "${titles[@]}"
 output=($(
     if [ "$isPiped" ]; then
 	printf '%s\n' "${titles[@]}" | eval "${targetCommands[@]}"
@@ -128,7 +126,6 @@ output=($(
     fi
 )) || exit $?
 
-#****echo >&2 "****" "${output[@]}"
 typeset -a selectedIds=()
 for outLine in "${output[@]}"
 do
