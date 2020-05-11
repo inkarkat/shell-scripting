@@ -9,17 +9,17 @@ If COMMANDLINE is specified, pipe this output (if there is any, or also if
 --command-takes-empty is given) through it (or invoke EMPTY-COMMANDLINE if there
 are no arguments).
 HELPTEXT
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE"] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
 }
 
-targetCommand=
+typeset -a targetCommands=()
 isCommandTakesEmpty=
 emptyCommand=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-	--command|-c)	shift; targetCommand="$1"; shift;;
+	--command|-c)	shift; targetCommands+=(${targetCommands:+|} "$1"); shift;;
 	--command-takes-empty|-E)
 			shift; isCommandTakesEmpty=t;;
 	--empty-command|-e)
@@ -36,9 +36,9 @@ fi
 
 
 if [ $# -gt 0 ]; then
-    eval "printf '%s\n'" '"$@"' "${targetCommand:+|}" "$targetCommand"
-elif [ "$isCommandTakesEmpty" ] && [ "$targetCommand" ]; then
-    printf '' | eval "$targetCommand"
+    eval "printf '%s\n'" '"$@"' "${targetCommands:+|}" "${targetCommands[@]}"
+elif [ "$isCommandTakesEmpty" ] && [ ${#targetCommands[@]} -gt 0 ]; then
+    printf '' | eval "${targetCommands[@]}"
 elif [ "$emptyCommand" ]; then
     eval "$emptyCommand"
 fi
