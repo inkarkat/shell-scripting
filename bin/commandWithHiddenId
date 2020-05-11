@@ -6,9 +6,9 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [--] \"ID1 TITLE1\" [...] [-?|-h|--help]"
-    printf 'Usage: %q %s\n' "$(basename "$1")" "-g|--generator GENERATOR [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\""
-    printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-p|--piped] -c|--command "COMMANDLINE"'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [-c ...] [--] \"ID1 TITLE1\" [...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "-g|--generator GENERATOR [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [-c ...]"
+    printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-p|--piped] -c|--command "COMMANDLINE" [-c ...]'
 }
 printUsage()
 {
@@ -53,7 +53,8 @@ isStdin=
 generator=
 unset filter
 isPiped=
-targetCommand=
+commandSeparator=';'
+typeset -a targetCommands=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -61,14 +62,14 @@ do
 	--stdin)	    shift; isStdin=t;;
 	--generator|-g)	    shift; generator="$1"; shift;;
 	--filter|-f)	    shift; filter="$1"; shift;;
-	--piped|-p)	    shift; isPiped=t;;
-	--command|-c)	    shift; targetCommand="$1"; shift;;
+	--piped|-p)	    shift; isPiped=t; commandSeparator='|';;
+	--command|-c)	    shift; targetCommands+=(${targetCommands:+"$commandSeparator"} "$1"); shift;;
 	--)		    shift; break;;
 	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
 	*)		    break;;
     esac
 done
-if [ -z "$targetCommand" ]; then
+if [ ${#targetCommands[@]} -eq 0 ]; then
     echo >&2 'ERROR: No -c|--command passed.'
     echo >&2
     printUsage "$0" >&2
@@ -118,12 +119,12 @@ done
 #**** echo >&2 "****" "${titles[@]}"
 output=($(
     if [ "$isPiped" ]; then
-	printf '%s\n' "${titles[@]}" | eval "$targetCommand"
+	printf '%s\n' "${titles[@]}" | eval "${targetCommands[@]}"
     else
 	typeset -a e=('"${titles[@]}"')
-	typeset -a interpolatedCommand=("${targetCommand//\{\}/'"${titles[@]}"'}")
-	[ "$interpolatedCommand" = "$targetCommand" ] || e=()
-	eval "$interpolatedCommand" "${e[@]}"
+	typeset -a interpolatedCommands=("${targetCommands[@]//\{\}/'"${titles[@]}"'}")
+	[ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
+	eval "${interpolatedCommands[@]}" "${e[@]}"
     fi
 )) || exit $?
 
