@@ -8,7 +8,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [--single-only] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-c|--command \"COMMANDLINE\"] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [--single-only] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
     printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-c ...] [-?|-h|--help]'
 }
 printUsage()
@@ -58,7 +58,7 @@ HELPTEXT
 isAcceptSingle=
 isMultiSelect=t
 isStdin=
-targetCommand=
+typeset -a targetCommands=()
 generator=
 unset filter
 while [ $# -ne 0 ]
@@ -70,7 +70,7 @@ do
 	--stdin)	    shift; isStdin=t;;
 	--generator|-g)	    shift; generator="$1"; shift;;
 	--filter|-f)	    shift; filter="$1"; shift;;
-	--command|-c)	    shift; targetCommand="$1"; shift;;
+	--command|-c)	    shift; targetCommands+=(${targetCommands:+;} "$1"); shift;;
 	--)		    shift; break;;
 	-[^0-9]*)	    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		    break;
@@ -317,11 +317,11 @@ if [ ! "$isMultiSelect" -a ${#selectedEntries[@]} -gt 1 ]; then
 fi
 
 typeset -a e=('"${selectedEntries[@]}"')
-if [ "$targetCommand" ]; then
-    typeset -a interpolatedCommand=("${targetCommand//\{\}/'"${selectedEntries[@]}"'}")
-    [ "$interpolatedCommand" = "$targetCommand" ] || e=()
+if [ ${#targetCommands[@]} -gt 0 ]; then
+    typeset -a interpolatedCommands=("${targetCommands[@]//\{\}/'"${selectedEntries[@]}"'}")
+    [ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
 else
-    typeset -a interpolatedCommand=("printf '%s\\n'")
+    typeset -a interpolatedCommands=("printf '%s\\n'")
 fi
 
-eval "$interpolatedCommand" "${e[@]}"
+eval "${interpolatedCommands[@]}" "${e[@]}"
