@@ -36,7 +36,7 @@ bar"
 @test "cannot compbine --command-takes-empty with --empty-command" {
     run argsToLines --command true --command-takes-empty --empty-command true
     [ $status -eq 2 ]
-    [[ "${lines[4]}" =~ ^Usage: ]]
+    [[ "${lines[0]}" =~ ^Usage: ]]
 }
 
 @test "can pass --command-takes-empty without --command" {

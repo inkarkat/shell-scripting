@@ -1,15 +1,33 @@
 #!/bin/bash
 set -o pipefail
 
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
+}
 printUsage()
 {
-    cat <<HELPTEXT
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 'Try %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
 Print all supplies command-line arguments as individual lines to standard output.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    cat <<HELPTEXT
 If COMMANDLINE is specified, pipe this output (if there is any, or also if
 --command-takes-empty is given) through it (or invoke EMPTY-COMMANDLINE if there
 are no arguments).
 HELPTEXT
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
 }
 
 typeset -a targetCommands=()
