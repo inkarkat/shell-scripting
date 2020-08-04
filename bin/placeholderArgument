@@ -1,10 +1,12 @@
 #!/bin/bash
 
 : ${PLACEHOLDERARGUMENT_ARG_MARKER:='{}'}
+argMarker="$PLACEHOLDERARGUMENT_ARG_MARKER"; unset PLACEHOLDERARGUMENT_ARG_MARKER
+
 printUsage()
 {
     cat <<HELPTEXT
-Execute COMMAND while replacing all occurrences of $PLACEHOLDERARGUMENT_ARG_MARKER in its argument with the
+Execute COMMAND while replacing all occurrences of $argMarker in its argument with the
 LAST-ARGUMENT. (Can be useful when xargs doesn't support the -I replace-str (as
 in Busybox xargs).)
 HELPTEXT
@@ -20,10 +22,10 @@ fi
 
 lastArg="${!#}"
 typeset -a args=("${@:1:$(($#-1))}")
-typeset -a interpolatedArgs=("${args[@]//"$PLACEHOLDERARGUMENT_ARG_MARKER"/$lastArg}")
+typeset -a interpolatedArgs=("${args[@]//"$argMarker"/$lastArg}")
 if [ "${interpolatedArgs[*]}" = "${args[*]}" ]; then
     printUsage >&2 "$0"
     exit 2
 fi
-unset PLACEHOLDERARGUMENT_ARG_MARKER
+
 exec "${interpolatedArgs[@]}"

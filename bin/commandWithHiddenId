@@ -3,6 +3,7 @@ set -o pipefail
 shopt -qs extglob
 
 : ${COMMANDWITHHIDDENID_TITLE_MARKER:='{}'}
+titleMarker="$COMMANDWITHHIDDENID_TITLE_MARKER"; unset COMMANDWITHHIDDENID_TITLE_MARKER
 
 printShortUsage()
 {
@@ -27,7 +28,7 @@ printLongUsage()
 Read entries (one per line) consisting of ID + whitespace + TITLE from GENERATOR
 / standard input / passed "ID1 TITLE1" "ID2 TITLE2" ... , split off IDs, make
 identical TITLEs unique by appending (2), (3), etc., then pass them to
-COMMANDLINE (either appended or replacing any $COMMANDWITHHIDDENID_TITLE_MARKER marker, or with -p|--piped one
+COMMANDLINE (either appended or replacing any $titleMarker marker, or with -p|--piped one
 per line via standard input), and capture its output. From these supposedly
 filtered TITLEs (no output at all is also accepted; to prevent that, add a grep
 command at the end of COMMANDLINE), translate back to the corresponding IDs and
@@ -122,9 +123,8 @@ output=($(
 	printf '%s\n' "${titles[@]}" | eval "${targetCommands[@]}"
     else
 	typeset -a e=('"${titles[@]}"')
-	typeset -a interpolatedCommands=("${targetCommands[@]//"$COMMANDWITHHIDDENID_TITLE_MARKER"/'"${titles[@]}"'}")
+	typeset -a interpolatedCommands=("${targetCommands[@]//"$titleMarker"/'"${titles[@]}"'}")
 	[ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
-	unset COMMANDWITHHIDDENID_TITLE_MARKER
 
 	eval "${interpolatedCommands[@]}" "${e[@]}"
     fi

@@ -3,6 +3,8 @@ set -o noglob
 shopt -qs extglob
 
 : ${COMMANDONSELECTED_ENTRIES_MARKER:='{}'}
+entriesMarker="$COMMANDONSELECTED_ENTRIES_MARKER"; unset COMMANDONSELECTED_ENTRIES_MARKER
+
 fuzzyTrigger=; callable fzf && fuzzyTrigger=z
 
 printShortUsage()
@@ -48,7 +50,7 @@ allow further filtering of the list, or invert the selection via //). With
 --single-only, the querying stops when at least one entry has been selected (and
 any additional ones are ignored and a warning is printed).
 The selected entries are then passed to the COMMANDLINE (either appended or
-replacing any $COMMANDONSELECTED_ENTRIES_MARKER marker) [or printed].
+replacing any $entriesMarker marker) [or printed].
 
 EXIT STATUS
 Exits with 2 if a bad selection was made, 124 if there are no entries available,
@@ -319,11 +321,10 @@ fi
 
 typeset -a e=('"${selectedEntries[@]}"')
 if [ ${#targetCommands[@]} -gt 0 ]; then
-    typeset -a interpolatedCommands=("${targetCommands[@]//"$COMMANDONSELECTED_ENTRIES_MARKER"/'"${selectedEntries[@]}"'}")
+    typeset -a interpolatedCommands=("${targetCommands[@]//"$entriesMarker"/'"${selectedEntries[@]}"'}")
     [ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
 else
     typeset -a interpolatedCommands=("printf '%s\\n'")
 fi
 
-unset COMMANDONSELECTED_ENTRIES_MARKER
 eval "${interpolatedCommands[@]}" "${e[@]}"
