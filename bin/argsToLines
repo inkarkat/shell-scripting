@@ -1,11 +1,14 @@
 #!/bin/bash
 set -o pipefail
 
+: ${ARGSTOLINES_ARGS_MARKER:='{}'}
+argsMarker="$ARGSTOLINES_ARGS_MARKER"; unset ARGSTOLINES_ARGS_MARKER
+
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...] [-s|--sink-command SINK-COMMAND]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -32,12 +35,18 @@ HELPDESCRIPTION
     --empty-command|-e EMPTY-COMMANDLINE
 				Invoke EMPTY-COMMANDLINE if there are no
 				arguments.
+    --sink-command|-s SINK-COMMAND
+				Turn lines emitted by COMMANDLINE back into
+				arguments and pass those to SINK-COMMAND, either
+				appended or replacing any $argsMarker marker inside
+				SINK-COMMAND.
 HELPTEXT
 }
 
 typeset -a targetCommands=()
 isCommandTakesEmpty=
 emptyCommand=
+sinkCommand=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -47,6 +56,8 @@ do
 			shift; isCommandTakesEmpty=t;;
 	--empty-command|-e)
 			shift; emptyCommand="$1"; shift;;
+	--sink-command|-s)
+			shift; sinkCommand="$1"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -58,10 +69,28 @@ if [ "$isCommandTakesEmpty" ] && [ "$emptyCommand" ]; then
 fi
 
 
+linesToSink()
+{
+    typeset -a args=()
+    IFS=$'\n' readarray -t args
+
+    local arg quotedArgs
+    for arg in "${args[@]}"
+    do
+	printf -v arg %q "$arg"
+	quotedArgs="${quotedArgs}${quotedArgs:+ }${arg}"
+    done
+
+    typeset -a a=("${args[@]}")
+    local interpolatedCommand="${sinkCommand//"$argsMarker"/$quotedArgs}"
+    [ "$interpolatedCommand" = "$sinkCommand" ] || a=()
+    eval "$interpolatedCommand" '"${a[@]}"'
+}
+
 if [ $# -gt 0 ]; then
-    eval "printf '%s\n'" '"$@"' "${targetCommands:+|}" "${targetCommands[@]}"
+    eval "printf '%s\n'" '"$@"' "${targetCommands:+|}" "${targetCommands[@]}" "${sinkCommand:+| linesToSink}"
 elif [ "$isCommandTakesEmpty" ] && [ ${#targetCommands[@]} -gt 0 ]; then
-    printf '' | eval "${targetCommands[@]}"
+    printf '' | eval "${targetCommands[@]}" "${sinkCommand:+| linesToSink}"
 elif [ "$emptyCommand" ]; then
-    eval "$emptyCommand"
+    eval "$emptyCommand" "${sinkCommand:+| linesToSink}"
 fi
