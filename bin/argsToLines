@@ -25,9 +25,13 @@ HELPDESCRIPTION
     echo
     printShortUsage "$1"
     cat <<HELPTEXT
-If COMMANDLINE is specified, pipe this output (if there is any, or also if
---command-takes-empty is given) through it (or invoke EMPTY-COMMANDLINE if there
-are no arguments).
+    --command|-c COMMANDLINE	Pipe the output (if there is any) through
+				COMMANDLINE instead of just printing it.
+    --command-takes-empty|-E	Pipe empty input through COMMANDLINE if there
+				are no arguments (instead of doing nothing).
+    --empty-command|-e EMPTY-COMMANDLINE
+				Invoke EMPTY-COMMANDLINE if there are no
+				arguments.
 HELPTEXT
 }
 
