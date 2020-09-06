@@ -19,7 +19,8 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Print all supplies command-line arguments as individual lines to standard output.
+Print all supplied command-line arguments as individual lines to standard
+output.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -36,7 +37,7 @@ emptyCommand=
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--command|-c)	shift; targetCommands+=(${targetCommands:+|} "$1"); shift;;
 	--command-takes-empty|-E)
 			shift; isCommandTakesEmpty=t;;
