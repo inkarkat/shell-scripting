@@ -176,7 +176,7 @@ else
 			cat >&2 <<-EOF
 			    Enter each number (one after the other) to select the entry.
 			    You can also use ranges (2-5 or 3-); negative numbers select from the end.
-			    /N selects all but entry N.
+			    /N selects all but entry N, * selects all entries.
 			    Filter the list by entering "grep" arguments. (Double backslashes.)
 EOF
 			if [ ${#filters[@]} -gt 1 ]; then
@@ -201,6 +201,14 @@ EOF
 			    local IFS=' '
 			    printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "$(joinBy ', ' "${selectedEntries[@]}")"
 			fi
+			;;
+		    \**( ).)
+			filters=();&
+		    \**( )..)
+			isBreak=t
+			;&
+		    \*)
+			selectedEntries+=("$@")
 			;;
 		    +([0-9])*( ).)
 			filters=();&
