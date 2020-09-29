@@ -4,6 +4,8 @@ shopt -qs extglob
 
 : ${COMMANDONSELECTED_ENTRIES_MARKER:='{}'}
 entriesMarker="$COMMANDONSELECTED_ENTRIES_MARKER"; unset COMMANDONSELECTED_ENTRIES_MARKER
+: ${COMMANDONSELECTED_POST_FILTER_MARKER:='{}'}
+postFilterMarker="$COMMANDONSELECTED_POST_FILTER_MARKER"; unset COMMANDONSELECTED_POST_FILTER_MARKER
 
 fuzzyTrigger=; callable fzf && fuzzyTrigger=z
 
@@ -51,6 +53,12 @@ allow further filtering of the list, or invert the selection via //). With
 any additional ones are ignored and a warning is printed).
 The selected entries are then passed to the COMMANDLINE (either appended or
 replacing any $entriesMarker marker) [or printed].
+
+    --post-filter FILTER
+		    Pass the selected entries as individual arguments to FILTER
+		    (either appended or replacing $postFilterMarker), which should return
+		    each on a separate line, before these are passed to
+		    COMMANDLINE [or printed].
 
 EXIT STATUS
 Exits with 2 if a bad selection was made, 124 if there are no entries available,
@@ -357,9 +365,19 @@ if [ ! "$isMultiSelect" -a ${#selectedEntries[@]} -gt 1 ]; then
 fi
 
 if [ -n "$postFilter" ]; then
+    for selectedEntry in "${selectedEntries[@]}"
+    do
+	printf -v selectedEntry %q "$selectedEntry"
+	quotedSelectedEntries="${quotedSelectedEntries}${quotedSelectedEntries:+ }${selectedEntry}"
+    done
+
+    typeset -a se=("${selectedEntries[@]}")
+    interpolatedPostFilter="${postFilter//"$postFilterMarker"/$quotedSelectedEntries}"
+    [ "$interpolatedPostFilter" = "$postFilter" ] || se=()
+
     saveIFS=$IFS
     IFS=$'\n'
-    selectedEntries=($(eval "$postFilter" '"${selectedEntries[@]}"'))
+    selectedEntries=($(eval "$interpolatedPostFilter" '"${se[@]}"'))
     IFS=$saveIFS
 fi
 
