@@ -4,6 +4,8 @@ shopt -qs extglob
 
 : ${COMMANDONSELECTED_ENTRIES_MARKER:='{}'}
 entriesMarker="$COMMANDONSELECTED_ENTRIES_MARKER"; unset COMMANDONSELECTED_ENTRIES_MARKER
+: ${COMMANDONSELECTED_FILTER_MARKER:='{}'}
+filterMarker="$COMMANDONSELECTED_FILTER_MARKER"; unset COMMANDONSELECTED_FILTER_MARKER
 : ${COMMANDONSELECTED_POST_FILTER_MARKER:='{}'}
 postFilterMarker="$COMMANDONSELECTED_POST_FILTER_MARKER"; unset COMMANDONSELECTED_POST_FILTER_MARKER
 
@@ -38,6 +40,8 @@ HELPDESCRIPTION
 
 Passed ENTRIES are then passed to GENERATOR for further filtering unless FILTER
 is given, in which case it is passed to it, or taken as-is if FILTER is empty.
+ENTRIES are either appended or replace any $filterMarker; they should be returned as
+separate lines.
 If SELECTIONs are passed, the resulting entries are selected from them.
 Selection works by numbers, starting with 1 for the first entry; you can also
 use enumerations (1 3 4) and ranges (2-5 or 3-; instead of relying on brace
@@ -129,9 +133,19 @@ else
     entrySource="$generator"
 fi
 if [ -n "$entrySource" ]; then
+    for entry in "${entries[@]}"
+    do
+	printf -v entry %q "$entry"
+	quotedEntries="${quotedEntries}${quotedEntries:+ }${entry}"
+    done
+
+    typeset -a e=("${entries[@]}")
+    interpolatedEntrySource="${entrySource//"$filterMarker"/$quotedEntries}"
+    [ "$interpolatedEntrySource" = "$entrySource" ] || e=()
+
     saveIFS=$IFS
     IFS=$'\n'
-    entries=($(eval "$entrySource" '"${entries[@]}"'))
+    entries=($(eval "$interpolatedEntrySource" '"${e[@]}"'))
     IFS=$saveIFS
 fi
 
