@@ -149,9 +149,10 @@ else
 	case $# in
 	    0)	;;
 	    1)	echo >&2 "$prefix at full list of entries; press Enter to show again.";;
-	    *)	printf >&2 '%s at filter %s;\n%spress Enter to show entries again, Ctrl-D or "." to leave this filter.\n' \
+	    *)	printf >&2 '%s at filter %s;\n%spress Enter to show entries again, Ctrl-D or ".." to leave this filter,\n%s"." to finish selecting.\n' \
 		    "$prefix" \
 		    "$(joinBy ' > ' "${@:1:$(($#-1))}")" \
+		    "${prefix%%+([^	 ])}" \
 		    "${prefix%%+([^	 ])}"
 		;;
 	esac
@@ -166,17 +167,30 @@ else
 	    else
 		local isBreak=
 		case "$REPLY" in
-		    .)  isBreak=t;;
+		    .)  filters=();&
+		    ..) isBreak=t;;
 		    //) invertCandidates "$@"; isBreak=t;;
 		    ${fuzzyTrigger:-.})
 			selectFuzzy "$@"; isBreak=t;;
-		    \?) quote='"'; cat >&2 <<-EOF
+		    \?) quote='"'
+			cat >&2 <<-EOF
 			    Enter each number (one after the other) to select the entry.
 			    You can also use ranges (2-5 or 3-); negative numbers select from the end.
 			    /N selects all but entry N.
 			    Filter the list by entering "grep" arguments. (Double backslashes.)
-			    Conclude (selection or filtering) by appending "." to entered numbers or
-			    ranges, by pressing Ctrl-D or entering just a single "."
+EOF
+			if [ ${#filters[@]} -gt 1 ]; then
+			    cat >&2 <<-EOF
+			    Leave the current filter by appending or entering ".." to entered numbers or
+			    ranges, or by pressing Ctrl-D.
+			    Finish selecting altogether by appending or entering a single ".".
+EOF
+			else
+			    cat >&2 <<-EOF
+			    Finish selecting by appending or entering a single ".", or pressing Ctrl-D.
+EOF
+			fi
+			cat >&2 <<-EOF
 			    Take the inversion (i.e. all not selected entries) by entering "//"${fuzzyTrigger:+
     Switch to fuzzy matching (using fzf) by entering ${quote}${fuzzyTrigger}${quote}}
 EOF
@@ -189,7 +203,9 @@ EOF
 			fi
 			;;
 		    +([0-9])*( ).)
-			selectedEntries+=("${@:${REPLY%*( ).}:1}")
+			filters=();&
+		    +([0-9])*( )..)
+			selectedEntries+=("${@:${REPLY%%*( )+(.)}:1}")
 			isBreak=t
 			;;
 		    +([0-9]))
@@ -198,7 +214,9 @@ EOF
 			printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
 			;;
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( ).)
-			REPLY="${REPLY%*( ).}"
+			filters=();&
+		    ?(-)+([0-9])+( ?(-)+([0-9]))*( )..)
+			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
 			;&
 		    ?(-)+([0-9])+( ?(-)+([0-9])))
@@ -206,7 +224,9 @@ EOF
 			selectByCounts "$@"
 			;;
 		    @(/?(-)|-)+([0-9])*( ).)
-			REPLY="${REPLY%*( ).}"
+			filters=();&
+		    @(/?(-)|-)+([0-9])*( )..)
+			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
 			;&
 		    @(/?(-)|-)+([0-9]))
@@ -214,7 +234,9 @@ EOF
 			selectByCounts "$@"
 			;;
 		    +([0-9])-+([0-9])*( ).)
-			REPLY="${REPLY%*( ).}"
+			filters=();&
+		    +([0-9])-+([0-9])*( )..)
+			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
 			;&
 		    +([0-9])-+([0-9]))
@@ -222,7 +244,9 @@ EOF
 			selectByCounts "$@"
 			;;
 		    /+([0-9])-+([0-9])*( ).)
-			REPLY="${REPLY%*( ).}"
+			filters=();&
+		    /+([0-9])-+([0-9])*( )..)
+			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
 			;&
 		    /+([0-9])-+([0-9]))
@@ -230,7 +254,9 @@ EOF
 			selectByCounts "$@"
 			;;
 		    +([0-9])-*( ).)
-			REPLY="${REPLY%*( ).}"
+			filters=();&
+		    +([0-9])-*( )..)
+			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
 			;&
 		    +([0-9])-)
@@ -244,6 +270,7 @@ EOF
 			else
 			    filters+=("$REPLY")
 				selectCandidates "${filteredEntries[@]}"
+				[ ${#filters[@]} -eq 0 ] && break
 			    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
 			fi
 			;;
