@@ -85,7 +85,7 @@ typeset -a entries=()
 if [ $# -gt 0 ]; then
     entries=("${@//$'\n'/ }")
 elif [ "$isStdin" ]; then
-    mapfile -t entries
+    readarray -t entries
 fi
 
 if [ ${#entries[@]} -gt 0 -a -n "${filter+t}" ]; then
