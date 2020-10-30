@@ -1,7 +1,7 @@
 #!/bin/bash
 set -o pipefail
 
-: ${ARGSTOLINES_ARGS_MARKER:='{}'}
+: ${ARGSTOLINES_ARGS_MARKER='{}'}
 argsMarker="$ARGSTOLINES_ARGS_MARKER"; unset ARGSTOLINES_ARGS_MARKER
 
 printShortUsage()
@@ -37,9 +37,9 @@ HELPDESCRIPTION
 				arguments.
     --sink-command|-s SINK-COMMAND
 				Turn lines emitted by COMMANDLINE back into
-				arguments and pass those to SINK-COMMAND, either
-				appended or replacing any $argsMarker marker inside
-				SINK-COMMAND.
+				arguments and pass those to SINK-COMMAND, ${argsMarker:+either}
+				appended${argsMarker:+ or replacing any $argsMarker marker inside
+				SINK-COMMAND}.
 HELPTEXT
 }
 
