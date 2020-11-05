@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '-c|--command "COMMANDLINE" [-c ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-r|--run-if-empty] -c|--command "COMMANDLINE" [-c ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -29,18 +29,23 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --run-if-empty|-r	Also run COMMANDs (without any supplied arguments) if
+			there is no input. By default, nothing will be executed.
     --command|-c CMD	The command line to be executed. When this is a simple
 			command, it can also be passed as such. Read arguments
 			are appended${argMarker:+ or replace the string $argMarker}.
 HELPTEXT
 }
 
+isRunIfEmpty=
 isNeedEval=
 typeset -a commands=()
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--run-if-empty|-r)
+			shift; isRunIfEmpty=t;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
@@ -67,6 +72,7 @@ fi >&2
 
 
 readarray -t lines
+[ ${#lines[@]} -eq 0 ] && [ ! "$isRunIfEmpty" ] && exit 0
 
 
 if [ "$isNeedEval" ]; then
