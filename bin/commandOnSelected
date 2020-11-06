@@ -16,6 +16,7 @@ printShortUsage()
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single] [--single-only] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
+    echo
     printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-c ...] [-?|-h|--help]'
 }
 printUsage()
@@ -23,7 +24,7 @@ printUsage()
     # This is the short help when launched with no or incorrect arguments.
     # It is printed to stderr to avoid accidental processing.
     printShortUsage "$1" >&2
-    printf >&2 'Try %q --help for more information.\n' "$(basename "$1")"
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
 }
 printLongUsage()
 {

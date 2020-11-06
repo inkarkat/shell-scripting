@@ -10,7 +10,9 @@ printShortUsage()
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: %q %s\n' "$(basename "$1")" "[-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [-c ...] [--] \"ID1 TITLE1\" [...] [-?|-h|--help]"
+    echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "-g|--generator GENERATOR [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [-c ...]"
+    echo
     printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-p|--piped] -c|--command "COMMANDLINE" [-c ...]'
 }
 printUsage()
@@ -18,7 +20,7 @@ printUsage()
     # This is the short help when launched with no or incorrect arguments.
     # It is printed to stderr to avoid accidental processing.
     printShortUsage "$1" >&2
-    printf >&2 'Try %q --help for more information.\n' "$(basename "$1")"
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
 }
 printLongUsage()
 {
@@ -68,16 +70,16 @@ do
 	--piped|-p)	    shift; isPiped=t; commandSeparator='|';;
 	--command|-c)	    shift; targetCommands+=(${targetCommands:+"$commandSeparator"} "$1"); shift;;
 	--)		    shift; break;;
-	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printShortUsage "$0"; } >&2; exit 2;;
+	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		    break;;
     esac
 done
 if [ ${#targetCommands[@]} -eq 0 ]; then
-    echo >&2 'ERROR: No -c|--command passed.'
-    echo >&2
-    printUsage "$0" >&2
+    echo 'ERROR: No -c|--command passed.'
+    echo
+    printUsage "$0"
     exit 2
-fi
+fi >&2
 
 set -o noglob
 IFS=$'\n'
