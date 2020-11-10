@@ -1,0 +1,97 @@
+#!/bin/bash
+set -o pipefail
+
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-p|--paged] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Build a pipeline out of COMMANDs, and process the input with it.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --paged|-p		Send the output of COMMANDs to the pager (${PAGER}) if
+			standard output goes to a terminal.
+    --reverse|-r	Put all following COMMANDs and SIMPLECOMMAND before
+			existing COMMANDs instead of after them. As you don't
+			need escaping on SIMPLECOMMAND, this can come handy when
+			one pipeline command would be particularly messy to
+			escape.
+    --command|-c CMD	Pipe the input into CMD if it's not piped somewhere
+			else. Multiple CMDs (and SIMPLECOMMAND) are combined as
+			pipelines, too.
+HELPTEXT
+}
+
+addCommand()
+{
+    if [ "$isReverse" ]; then
+	commands=("$1" ${commands:+|} "${commands[@]}")
+    else
+	commands+=(${commands:+|} "$1")
+    fi
+}
+
+typeset pager=()
+isReverse=
+isNeedEval=
+typeset -a commands=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--paged|-p)	shift; pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=();;
+	--reverse|-r)	shift; isReverse=t;;
+	--command|-c)	shift
+			addCommand "$1"
+			isNeedEval=t
+			shift
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -ne 0 ]; then
+    if [ "$isNeedEval" ]; then
+	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+	# undo the effects of eval.
+	addCommand "$(printf '%q ' "$@")"
+    else
+	commands=("$@")
+    fi
+fi
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+
+runPipeline()
+{
+    if [ "$isNeedEval" ]; then
+	eval "${commands[@]}"
+    else
+	exec "${commands[@]}"
+    fi
+}
+
+eval 'runPipeline' "${pager:+|}" '"${pager[@]}"'
