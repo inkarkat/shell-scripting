@@ -19,6 +19,8 @@ printShortUsage()
     # skim the long one.
     printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single [--auto-selected-entry-message MSG]] [--single-only] [-p|--prompt PROMPT] [--no-entries-message MSG] [--selection-message MSG|--interactive-selection-message MSG] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
     echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... --allow-literal-match|--allow-glob-match [--] [MATCH ...|SELECTION ...] -- [ENTRIES ...]"
+    echo
     printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-c ...] [-?|-h|--help]'
 }
 printUsage()
@@ -83,6 +85,19 @@ replacing any $entriesMarker marker}) [or printed].
 		    (${postFilterMarker:+either }appended${postFilterMarker:+ or replacing $postFilterMarker}), which should return
 		    each on a separate line, before these are passed to
 		    COMMANDLINE [or printed].
+    --allow-literal-match
+		    In addition to the numerical SELECTIONs, literal MATCHes can
+		    be passed as arguments (then the -- separator to any
+		    following ENTRIES is mandatory). Any entry that equals a
+		    MATCH is selected. Multiple arguments must be all MATCHes or
+		    all SELECTIONs; mixing is not allowed.
+    --allow-glob-match
+		    In addition to the numerical SELECTIONs, MATCH globs (e.g.
+		    \?oo\*) can be passed as arguments (then the -- separator to
+		    any following ENTRIES is mandatory). Any entry that matches
+		    an (anchored, extended) glob MATCH is selected. Multiple
+		    arguments must be all MATCHes or all SELECTIONs; mixing is
+		    not allowed.
 
 EXIT STATUS
 Exits with 2 if a bad selection was made, 124 if there are no entries available,
@@ -103,6 +118,7 @@ typeset -a targetCommands=()
 generator=
 unset filter
 postFilter=
+matchFunction=
 prompt=
 noEntriesMessage=
 autoSelectedEntryMessage=
@@ -119,6 +135,9 @@ do
 	--filter|-f)	    shift; filter="$1"; shift;;
 	--post-filter)	    shift; postFilter="$1"; shift;;
 	--command|-c)	    shift; targetCommands+=(${targetCommands:+;} "$1"); shift;;
+	--allow-literal-match)
+			    shift; matchFunction=selectByMatch;;
+	--allow-glob-match) shift; matchFunction=selectByGlob;;
 	--prompt|-p)	    shift; prompt="$1"; shift;;
 	--no-entries-message)
 			    shift; noEntriesMessage="$1"; shift;;
@@ -138,6 +157,7 @@ isFirstSelection=t
 isFuzzySelection=
 isSubtract=
 typeset -a selected=()
+typeset -a matches=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -154,10 +174,20 @@ do
 	+([0-9])-)		if [ "$1" = '1-' ]; then echo >&2 "Cannot select all entries like this."; exit 2; fi
 				previous=$((${1%-} - 1)); eval "selected+=(/{1..$previous})"; shift
 				;;
-	*)			break;;
+	*)			if [ -n "$matchFunction" ]; then
+				    matches+=("$1")
+				    shift
+				else
+				    break
+				fi
+				;;
     esac
     isFirstSelection=
 done
+if [ ${#selected[@]} -gt 0 -a ${#matches[@]} -gt 0 ]; then
+    echo 'ERROR: Cannot pass both SELECTIONs and MATCHes.'
+    exit 2
+fi >&2
 
 typeset -a entries=()
 if [ $# -gt 0 ]; then
@@ -197,7 +227,7 @@ if [ ${#entries[@]} -eq 0 ]; then
 elif [ ${#entries[@]} -eq 1 ] && [ "$isAcceptSingle" ]; then
     typeset -a selectedEntries=("${entries[@]}")
 else
-    if [ ${#selected[@]} -eq 0 ]; then
+    if [ ${#selected[@]} -eq 0 -a ${#matches[@]} -eq 0 ]; then
 	isInteractiveSelection=t
 	printIfDefined "$prompt"
     fi
@@ -400,20 +430,47 @@ EOF
 	    fi
 	done
     }
+    selectByMatch()
+    {
+	local entry; for entry
+	do
+	    local literal
+	    for literal in "${matches[@]}"
+	    do
+		[ "$literal" = "$entry" ] && ! contains "$entry" "${selectedEntries[@]}" && selectedEntries+=("$entry")
+	    done
+	done
+    }
+    selectByGlob()
+    {
+	local entry; for entry
+	do
+	    local glob
+	    for glob in "${matches[@]}"
+	    do
+		case "$entry" in
+		    $glob) ! contains "$entry" "${selectedEntries[@]}" && selectedEntries+=("$entry");;
+		esac
+	    done
+	done
+    }
     selectFuzzy()
     {
 	local IFS=$'\n'
 	selectedEntries+=($(printf '%s\n' "$@" | fzf ${isMultiSelect:+--multi}))
     }
 
-    if [ ${#selected[@]} -eq 0 ]; then
+    if [ ${#selected[@]} -gt 0 ]; then
+	selectByCounts "${entries[@]}"
+    elif [ ${#matches[@]} -gt 0 ]; then
+	"$matchFunction" "${entries[@]}"
+	[ ${#selectedEntries[@]} -eq 0 ] && printf >&2 'No matches for %s.\n' "$(joinBy ' or ' "${matches[@]}")"
+    else
 	if [ "$isFuzzySelection" ]; then
 	    selectFuzzy "${entries[@]}"
 	else
 	    selectCandidates "${entries[@]}"
 	fi
-    else
-	selectByCounts "${entries[@]}"
     fi
 fi
 
