@@ -17,7 +17,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single [--auto-selected-entry-message MSG]] [--single-only] [-p|--prompt PROMPT] [--no-entries-message MSG] [--selection-message MSG] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[--accept-single [--auto-selected-entry-message MSG]] [--single-only] [-p|--prompt PROMPT] [--no-entries-message MSG] [--selection-message MSG|--interactive-selection-message MSG] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [--] [SELECTION ...] [--] [ENTRIES ...] [-?|-h|--help]"
     echo
     printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-c ...] [-?|-h|--help]'
 }
@@ -69,10 +69,15 @@ replacing any $entriesMarker marker}) [or printed].
 		    Print MSG to stderr if a single entry has been automatically
 		    chosen; the entry itself is referenced by %s in MSG.
     --selection-message MSG
-		    Print MSG to stderr if entries have been chosen; if the
-		    number of entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated;
-		    else, only a count is passed, both to be referenced by %s in
-		    MSG.
+		    Print MSG to stderr if entries have been chosen (either
+		    interactively or through SELECTION); if the number of
+		    entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else,
+		    only a count is passed, both to be referenced by %s in MSG.
+    --interactive-selection-message MSG
+		    Print MSG to stderr if entries have been chosen
+		    interactively, but not through SELECTION); if the number of
+		    entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else,
+		    only a count is passed, both to be referenced by %s in MSG.
     --post-filter FILTER
 		    Pass the selected entries as individual arguments to FILTER
 		    (${postFilterMarker:+either }appended${postFilterMarker:+ or replacing $postFilterMarker}), which should return
@@ -102,6 +107,7 @@ prompt=
 noEntriesMessage=
 autoSelectedEntryMessage=
 selectionMessage=
+interactiveSelectionMessage=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -120,6 +126,8 @@ do
 			    shift; autoSelectedEntryMessage="$1"; shift;;
 	--selection-message)
 			    shift; selectionMessage="$1"; shift;;
+	--interactive-selection-message)
+			    shift; interactiveSelectionMessage="$1"; shift;;
 	--)		    shift; break;;
 	-[^0-9]*)	    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		    break;
@@ -182,13 +190,17 @@ if [ -n "$entrySource" ]; then
 fi
 
 
+isInteractiveSelection=
 if [ ${#entries[@]} -eq 0 ]; then
     printIfDefined "$noEntriesMessage"
     exit 124
 elif [ ${#entries[@]} -eq 1 ] && [ "$isAcceptSingle" ]; then
     typeset -a selectedEntries=("${entries[@]}")
 else
-    [ ${#selected[@]} -eq 0 ] && printIfDefined "$prompt"
+    if [ ${#selected[@]} -eq 0 ]; then
+	isInteractiveSelection=t
+	printIfDefined "$prompt"
+    fi
 
     isFirst=t
     typeset -a selectedEntries=()
@@ -433,13 +445,14 @@ fi
 # Print any messages only now after a potential post-filter has been applied.
 if [ ${#selectedEntries[@]} -eq 1 -a "$isAcceptSingle" ]; then
     printIfDefined "$autoSelectedEntryMessage" "${selectedEntries[0]}"
-elif [ -n "$selectionMessage" ]; then
+elif [ -n "$selectionMessage" ] || [ "$isInteractiveSelection" -a -n "$interactiveSelectionMessage" ]; then
     if [ ${#selectedEntries[@]} -le $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT ]; then
 	selectedEntriesCharacterization="$(joinBy ', ' "${selectedEntries[@]}")"
     else
 	selectedEntriesCharacterization="${#selectedEntries[@]} entries"
     fi
-    printIfDefined "$selectionMessage" "$selectedEntriesCharacterization"
+    message="$selectionMessage"; [ "$isInteractiveSelection" ] && message="$interactiveSelectionMessage"
+    printIfDefined "$message" "$selectedEntriesCharacterization"
 fi
 
 typeset -a e=('"${selectedEntries[@]}"')
