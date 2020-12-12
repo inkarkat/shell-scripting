@@ -153,7 +153,7 @@ fi
 
 if [ ${#entries[@]} -eq 0 ]; then
     exit 124
-elif [ ${#entries[@]} -eq 1 -a \( "$isAcceptSingle" -o ! "$isMultiSelect" \) ]; then
+elif [ ${#entries[@]} -eq 1 ] && [ "$isAcceptSingle" ]; then
     typeset -a selectedEntries=("${entries[@]}")
 else
     isFirst=t
