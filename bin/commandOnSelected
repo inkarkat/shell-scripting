@@ -72,9 +72,10 @@ replacing any $entriesMarker marker}) [or printed].
 		    chosen; the entry itself is referenced by %s in MSG.
     --selection-message MSG
 		    Print MSG to stderr if entries have been chosen (either
-		    interactively or through SELECTION); if the number of
-		    entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else,
-		    only a count is passed, both to be referenced by %s in MSG.
+		    interactively or through SELECTION, but not when a single
+		    entry is automatically chosen); if the number of entries is
+		    $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else, only a count
+		    is passed, both to be referenced by %s in MSG.
     --interactive-selection-message MSG
 		    Print MSG to stderr if entries have been chosen
 		    interactively, but not through SELECTION); if the number of
@@ -500,7 +501,7 @@ if [ -n "$postFilter" ]; then
 fi
 
 # Print any messages only now after a potential post-filter has been applied.
-if [ ${#selectedEntries[@]} -eq 1 -a "$isAcceptSingle" ]; then
+if [ ${#entries[@]} -eq 1 -a "$isAcceptSingle" ]; then
     printIfDefined "$autoSelectedEntryMessage" "${selectedEntries[0]}"
 elif [ -n "$selectionMessage" ] || [ "$isInteractiveSelection" -a -n "$interactiveSelectionMessage" ]; then
     if [ ${#selectedEntries[@]} -le $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT ]; then
