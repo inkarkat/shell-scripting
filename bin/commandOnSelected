@@ -107,7 +107,7 @@ HELPTEXT
 printIfDefined()
 {
     local message="$1"; shift
-    [ -z "$message" ] && return
+    [ -z "$message" ] && return 1
     printf >&2 "${message}\\n" "$@"
 }
 
@@ -508,8 +508,9 @@ elif [ -n "$selectionMessage" ] || [ "$isInteractiveSelection" -a -n "$interacti
     else
 	selectedEntriesCharacterization="${#selectedEntries[@]} entries"
     fi
-    message="$selectionMessage"; [ "$isInteractiveSelection" ] && message="$interactiveSelectionMessage"
-    printIfDefined "$message" "$selectedEntriesCharacterization"
+    [ "$isInteractiveSelection" ] && \
+	printIfDefined "$interactiveSelectionMessage" "$selectedEntriesCharacterization" || \
+	printIfDefined "$selectionMessage" "$selectedEntriesCharacterization"
 fi
 
 typeset -a e=('"${selectedEntries[@]}"')
