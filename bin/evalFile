@@ -1,0 +1,20 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Evaluate (exported) environment variables (\$VARIABLE / \${VARIABLE}) and shell
+command substitutions (\$(COMMAND) / \`COMMAND\`) inside FILE(s) and print the
+result. Backslashes must be doubled; all other characters can remain as-is, like
+in a double-quoted string in the shell. This can be used as a simple template
+expander.
+HELPTEXT
+    echo
+    printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" 'FILE [...] [-?|-h|--help]'
+}
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+esac
+
+contents="$(cat -- "$@")" || exit $?
+eval "printf %s\\\\n \"${contents//\"/\\\"}\""
