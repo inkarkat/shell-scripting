@@ -1,0 +1,5 @@
+This is a ${WHAT:+"}${WHAT}${WHAT:+" }file on $HOST_VAR with ${PASSWORD:-undefined}. This escaping of \$\$\$s for 'here' and "there".
+//mymy\\\\ /single\\ things
+Just a * for /home/*
+All on `uname`, to be exact $(echo -e 'What do\nI know?').
+A literal $'\n' or $'nono'
