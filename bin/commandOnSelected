@@ -25,7 +25,7 @@ printShortUsage()
     printf 'Usage: %q %s\n' "$(basename "$1")" "... --allow-literal-match|--allow-glob-match [--] [MATCH ...|SELECTION ...] -- [ENTRIES ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "... --allow-literal-match|--allow-glob-match --entries ; [ENTRIES ...] ; [--] [MATCH ...|SELECTION ...]"
     echo
-    printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '... [--entries ; [ENTRIES ...] ;] --stdin [-c ...]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '... [--entries ; [ENTRIES ...] ;] --stdin [-c ...]'
 }
 printUsage()
 {
@@ -109,6 +109,8 @@ replacing any $entriesMarker marker}) [or printed].
 		    the end and prevents the user from sneaking in additional
 		    ENTRIES via "SELECTION -- ENTRY", and therefore is the
 		    preferred form and especially useful for shell aliases.
+    --stdin	    Read entries from standard input; each line is one entry;
+		    these are appended to any entries passed via --entries.
 EXIT STATUS
 Exits with 2 if a bad selection was made, 124 if there are no entries available,
 125 if no entries were selected.
