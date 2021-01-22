@@ -72,7 +72,8 @@ if [ $# -ne 0 ]; then
     if [ "$isNeedEval" ]; then
 	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
 	# undo the effects of eval.
-	addCommand "$(printf '%q ' "$@")"
+	printf -v quotedSimpleCommand '%q ' "$@"
+	addCommand "${quotedSimpleCommand% }"
     else
 	commands=("$@")
     fi
