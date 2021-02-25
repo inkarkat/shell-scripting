@@ -59,14 +59,15 @@ expansion {2..5}); negative numbers select from the end, so -1 is the last one.
 entries.${fuzzyTrigger:+
 $fuzzyTrigger starts selection via fuzzy matching (using fzf).}
 
-Without SELECTIONs, show a (numbered) list of them to the user (or accept a
-single available ENTRY if --accept-single is given), and ask for selections (or
-allow further filtering of the list, or invert the selection via //). With
---single-only, the querying stops when at least one entry has been selected (and
-any additional ones are ignored and a warning is printed).
-The selected entries are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMarker:+ or
+Without SELECTIONs, show a (numbered) list of them to the user, and ask for
+selections (or allow further filtering of the list, or invert the selection via
+//). The selected entries are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMarker:+ or
 replacing any $entriesMarker marker}) [or printed].
 
+    --accept-single Accept a single available ENTRY without prompting the user.
+    --single-only   The querying stops when at least one entry has been selected
+		    (and any additional ones are ignored and a warning is
+		    printed).
     --prompt|-p PROMPT
 		    Print PROMPT before showing the entries.
     --no-entries-message MSG
