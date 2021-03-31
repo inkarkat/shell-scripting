@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+printUsage()
+{
+    cat <<HELPTEXT
+Create an executable shell script from standard input.
+HELPTEXT
+    echo
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--sudo] SCRIPT-FILE [-?|-h|--help]'
+}
+
+isSudo=
+SUDO=
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --sudo)		shift; isSudo=t;;
+esac
+if [ $# -ne 1 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+targetFilespec="${1:?}"; shift
+
+if [ "$isSudo" ]; then
+    SUDO=sudo; [ $EUID -eq 0 ] && SUDO=''
+    $SUDO tee -- "$targetFilespec" >/dev/null
+else
+    cat > "$targetFilespec"
+fi
+if [ ! -s "$targetFilespec" ]; then
+    echo >&2 'ERROR: No input'
+    $SUDO rm --force -- "$targetFilespec" 2>/dev/null
+    exit 1
+fi
+$SUDO chmod +x -- "$targetFilespec"
