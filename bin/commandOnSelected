@@ -531,11 +531,7 @@ fi
 if [ ${#entries[@]} -eq 1 -a "$isAcceptSingle" ]; then
     printIfDefined "$autoSelectedEntryMessage" "${selectedEntries[0]}"
 elif [ -n "$selectionMessage" ] || [ "$isInteractiveSelection" -a -n "$interactiveSelectionMessage" ]; then
-    if [ ${#selectedEntries[@]} -le $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT ]; then
-	selectedEntriesCharacterization="$(joinBy ', ' "${selectedEntries[@]}")"
-    else
-	selectedEntriesCharacterization="${#selectedEntries[@]} entries"
-    fi
+    selectedEntriesCharacterization="$(joinBy --summarize-larger "$COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT entries" ', ' "${selectedEntries[@]}")"
     [ "$isInteractiveSelection" ] && \
 	printIfDefined "$interactiveSelectionMessage" "$selectedEntriesCharacterization" || \
 	printIfDefined "$selectionMessage" "$selectedEntriesCharacterization"
