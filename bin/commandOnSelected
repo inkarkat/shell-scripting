@@ -137,6 +137,7 @@ noEntriesMessage=
 autoSelectedEntryMessage=
 selectionMessage=
 interactiveSelectionMessage=
+haveEntries=
 typeset -a entries=()
 while [ $# -ne 0 ]
 do
@@ -175,6 +176,7 @@ do
 				entries+=("$1"); shift
 			    done
 			    shift
+			    haveEntries=t
 			    ;;
 	--)		    shift; break;;
 	-[^0-9]*)	    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -218,7 +220,8 @@ if [ ${#selected[@]} -gt 0 -a ${#matches[@]} -gt 0 ]; then
     exit 2
 fi >&2
 
-if [ ${#entries[@]} -eq 0 -a $# -gt 0 ]; then	# Ignore stuff after -- if --entries have been used.
+#if [ "$haveEntries" ] # Ignore stuff after -- if --entries have been used.
+if [ ! "$haveEntries" ] && [ $# -gt 0 ]; then
     entries=("$@")
 elif [ "$isStdin" ]; then
     readarray -O ${#entries[@]} -t entries  # Append to entries supplied via --entries.
