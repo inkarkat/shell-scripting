@@ -21,6 +21,7 @@ printShortUsage()
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... [--] [SELECTION ...] [--] [ENTRIES ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "... -e|--entries ; [ENTRIES ...] ; [--] [SELECTION ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... --entries-first [ENTRIES ...] [-- SELECTION ...]"
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... --allow-literal-match|--allow-glob-match [--] [MATCH ...|SELECTION ...] -- [ENTRIES ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "... --allow-literal-match|--allow-glob-match -e|--entries ; [ENTRIES ...] ; [--] [MATCH ...|SELECTION ...]"
@@ -110,6 +111,13 @@ selection via //). The selected entries are then passed to the COMMANDLINE
 		    the end and prevents the user from sneaking in additional
 		    ENTRIES via "SELECTION -- ENTRY", and therefore is the
 		    preferred form and especially useful for shell aliases.
+    --entries-first ENTRIES come before SELECTIONs. This is useful for a
+		    GENERATOR that produces entries and takes options and
+		    parameters instead of filtering the passed arguments,
+		    because then the
+		    GENERATOR [(option-)ENTRY ...] [-- SELECTION ...]
+		    syntax can be used, which is more natural than
+		    GENERATOR [--] SELECTION [...] [-- (option-)ENTRY ...]
     --stdin	    Read entries from standard input; each line is one entry;
 		    these are appended to any entries passed via --entries.
 EXIT STATUS
@@ -176,6 +184,13 @@ do
 				entries+=("$1"); shift
 			    done
 			    shift
+			    haveEntries=t
+			    ;;
+	--entries-first)    shift
+			    until [ $# -eq 0 -o "$1" = '--' ]
+			    do
+				entries+=("$1"); shift
+			    done
 			    haveEntries=t
 			    ;;
 	--)		    shift; break;;
