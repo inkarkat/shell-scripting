@@ -497,7 +497,7 @@ EOF
 	    for glob in "${matches[@]}"
 	    do
 		case "$entry" in
-		    $glob) ! contains "$entry" "${selectedEntries[@]}" && selectedEntries+=("$entry");;
+		    @($glob)) ! contains "$entry" "${selectedEntries[@]}" && selectedEntries+=("$entry");;
 		esac
 	    done
 	done
