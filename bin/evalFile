@@ -10,11 +10,12 @@ can remain as-is, like in a double-quoted string in the shell.
 This can be used as a simple template expander.
 HELPTEXT
     echo
-    printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" 'FILE [...] [-?|-h|--help]'
+    printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" '[--] FILE [...] [-?|-h|--help]'
     printf 'Usage: cat FILE [...] | [VAR=... [...]] %q [-]\n' "$(basename "$1")"
 }
 case "$1" in
     --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --)			shift;;
 esac
 
 contents="$(cat -- "$@")" || exit $?
