@@ -1,0 +1,165 @@
+#!/bin/bash
+
+: ${LINESTOARG_ARG_MARKER='{}'}
+argMarker="$LINESTOARG_ARG_MARKER"; unset LINESTOARG_ARG_MARKER
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--emulate-prompt] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Read lines from standard input and pass each individually (${argMarker:+either }appended${argMarker:+ or
+replacing any $argMarker marker}) to COMMAND. If COMMAND transforms the argument
+to output line(s), this works like map. Similar to xargs -d '\\n' [-I {}] -n 1 COMMAND.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --run-if-empty|-r	Also run COMMANDs (without any supplied arguments) if
+			there is no input. By default, nothing will be executed.
+    --command|-c CMD	The command line to be executed. When this is a simple
+			command, it can also be passed as such. Read arguments
+			are appended${argMarker:+ or replace the string $argMarker}.
+    --with-header	Print a header (containing the current line) before each
+			execution.
+    --with-prompt	Emulate a full prompt (as if invoking COMMAND) before
+			each execution.
+    --initial-status NUM    Customizations of the prompt emulation around
+    --trailing-prompt	    COMMAND; cp. runWithPrompt
+    --no-trailing-prompt
+    --no-output-no-prompt
+    --no-output-no-error
+    --no-success-no-count
+    --no-count-on N
+    --exit-on-success
+    --exit-on-failure
+    --exit-on NUM
+    --emulate-prompt
+    --worst-status
+    --comment COMMENT
+    --summarize-failed ERROR-TEXT
+    --summarize-failed-separator SEP
+    --between-command BETWEEN-COMMAND
+		    Execute BETWEEN-COMMAND in between each COMMAND execution.
+EXIT STATUS:
+Overall exit status is the highest status of all. If you specify any
+runWithPrompt argument, --worst-status needs to be explicitly passed.
+
+Example:
+HELPTEXT
+    printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'ping -c1 -q --'
+}
+
+with=
+isRunIfEmpty=
+isNeedEval=
+typeset -a commands=()
+betweenCommand=
+typeset -a runWithPromptArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--run-if-empty|-r)
+			shift; isRunIfEmpty=t;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--with-header)	shift; with=header;;
+	--with-prompt)	shift; with=prompt;;
+
+	--trailing-prompt|--no-trailing-prompt|--no-output-no-prompt|--no-output-no-error|--no-success-no-count|--exit-on-success|--exit-on-failure|--emulate-prompt|--worst-status)
+			runWithPromptArgs+=("$1"); shift;;
+	--initial-status|--no-count-on|--exit-on|--comment|--summarize-failed|--summarize-failed-separator)
+			runWithPromptArgs+=("$1" "$2"); shift; shift;;
+
+	--between-command)
+			shift; betweenCommand="$1"; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -ne 0 ]; then
+    if [ "$isNeedEval" ]; then
+	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+	# undo the effects of eval.
+	printf -v quotedSimpleCommand '%q ' "$@"
+	printf -v escapedArgMarker %q "$argMarker"
+	commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    else
+	commands=("$@")
+    fi
+fi
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+
+isFirst=t
+case "$with" in
+    prompt)
+	[ ${#runWithPromptArgs[@]} -eq 0 ] && runWithPromptArgs=(--worst-status)
+	quoter='%q'; [ "$isNeedEval" ] && quoter='%s'
+	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
+	do
+	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
+		if [ "${betweenCommand:$((${#betweenCommand} - 1))}" = ';' ]; then
+		    printf '%s ' "$betweenCommand"  # Prepend the BETWEEN-COMMAND to the next line's execution (so there's no separate prompt) if it ends with a semicolon. Its exit status is then ignored.
+		else
+		    printf '%s\n' "$betweenCommand" # Use a separate prompt (and with it consider its exit status).
+		fi
+	    fi
+
+	    [ "$isNeedEval" ] && printf -v line '%q' "$line"
+	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
+	    typeset -a a=("$line")   # Quoter for isNeedEval=t is off, so need to use quoted line here.
+	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+
+	    printf "$quoter " "${interpolatedCommands[@]}" "${a[@]}"
+	    printf '\n'
+	    isFirst=
+	done | runWithPrompt "${runWithPromptArgs[@]}"
+	;;
+    *)
+	status=0
+	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
+	do
+	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
+		eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+	    fi
+
+	    if [ "$with" = 'header' ]; then
+		header ${isFirst:+--first} "$line"
+	    fi
+
+	    typeset -a a=("$line")   # No quoting, as array provides separation.
+	    [ "$isNeedEval" ] && printf -v line '%q' "$line"
+	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
+	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+
+	    if [ "$isNeedEval" ]; then
+		eval "${interpolatedCommands[@]}" '"${a[@]}"'
+	    else
+		"${interpolatedCommands[@]}" "${a[@]}"
+	    fi || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+	    isFirst=
+	done
+	exit $status
+	;;
+esac
