@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--emulate-prompt] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--emulate-prompt]] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -38,17 +38,17 @@ HELPDESCRIPTION
 			execution.
     --with-prompt	Emulate a full prompt (as if invoking COMMAND) before
 			each execution.
-    --initial-status NUM    Customizations of the prompt emulation around
-    --trailing-prompt	    COMMAND; cp. runWithPrompt
+    --emulate-prompt	    Customizations of the prompt emulation around
+    --initial-status NUM    COMMAND; cp. runWithPrompt
+    --trailing-prompt
     --no-trailing-prompt
     --no-output-no-prompt
     --no-output-no-error
-    --no-success-no-count
-    --no-count-on N
+    --no-success-no-count   Stop on condition / summarize at end; cp. runWith
+    --no-count-on N	    Cannot be combined with --with-header.
     --exit-on-success
     --exit-on-failure
     --exit-on NUM
-    --emulate-prompt
     --worst-status
     --comment COMMENT
     --summarize-failed ERROR-TEXT
@@ -57,7 +57,7 @@ HELPDESCRIPTION
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
 EXIT STATUS:
 Overall exit status is the highest status of all. If you specify any
-runWithPrompt argument, --worst-status needs to be explicitly passed.
+runWith[Prompt] argument, --worst-status needs to be explicitly passed.
 
 Example:
 HELPTEXT
@@ -69,6 +69,7 @@ isRunIfEmpty=
 isNeedEval=
 typeset -a commands=()
 betweenCommand=
+runWithCommand=runWith
 typeset -a runWithPromptArgs=()
 while [ $# -ne 0 ]
 do
@@ -78,7 +79,7 @@ do
 			shift; isRunIfEmpty=t;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--with-header)	shift; with=header;;
-	--with-prompt)	shift; with=prompt;;
+	--with-prompt)	shift; with=prompt; runWithCommand=runWithPrompt;;
 
 	--trailing-prompt|--no-trailing-prompt|--no-output-no-prompt|--no-output-no-error|--no-success-no-count|--exit-on-success|--exit-on-failure|--emulate-prompt|--worst-status)
 			runWithPromptArgs+=("$1"); shift;;
@@ -108,7 +109,13 @@ if [ ${#commands[@]} -eq 0 ]; then
     echo
     printUsage "$0"
     exit 2
+elif [ ${#runWithPromptArgs[@]} -gt 0 -a "$with" = header ]; then
+    echo 'ERROR: Cannot combine runWith[Prompt] arguments with --with-header.'
+    echo
+    printUsage "$0"
+    exit 2
 fi >&2
+[ ${#runWithPromptArgs[@]} -gt 0 ] && with=prompt
 
 
 isFirst=t
@@ -134,7 +141,7 @@ case "$with" in
 	    printf "$quoter " "${interpolatedCommands[@]}" "${a[@]}"
 	    printf '\n'
 	    isFirst=
-	done | runWithPrompt "${runWithPromptArgs[@]}"
+	done | ${runWithCommand:?} "${runWithPromptArgs[@]}"
 	;;
     *)
 	status=0
