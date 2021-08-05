@@ -22,8 +22,9 @@ if [ $# -ne 1 ]; then
 fi
 targetFilespec="${1:?}"; shift
 
-if [ "$isSudo" ]; then
-    SUDO=sudo; [ $EUID -eq 0 ] && SUDO=''
+[ "$isSudo" ] && [ $EUID -ne 0 ] && [ ! -w "$(dirname -- "$targetFilespec")" ] && SUDO=sudo
+
+if [ -n "$SUDO" ]; then
     $SUDO tee -- "$targetFilespec" >/dev/null
 else
     cat > "$targetFilespec"
