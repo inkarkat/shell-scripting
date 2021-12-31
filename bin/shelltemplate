@@ -28,10 +28,19 @@ case "$1" in
     --)			shift;;
 esac
 
+evalTemplate()
+{
+    if [ $# -eq 1 ]; then
+	exec evalFile -- "$1"
+    else
+	exec evalFile -- "$1" > "$2"
+    fi
+}
+
 if [ -n "$templateFile" ]; then
     case $# in
-	0) exec evalFile -- "$templateFile";;
-	1) exec evalFile -- "$templateFile" > "$1";;
+	0) evalTemplate "$templateFile";;
+	1) evalTemplate "$templateFile" "$1";;
 	*)  printUsage "$0" >&2
 	    exit 2
 	    ;;
@@ -41,5 +50,5 @@ else
 	printUsage "$0" >&2
 	exit 2
     fi
-    exec evalFile -- "$2" > "$1"
+    evalTemplate "$2" "$1"
 fi
