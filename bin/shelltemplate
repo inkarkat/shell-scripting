@@ -30,7 +30,7 @@ esac
 
 printEvaluatedTemplateWithoutShebang()
 {
-    evalFile -- "${1:?}"
+    evalFile -- "${1:?}" | sed -e '1{ /^#!/d }'
 }
 evalTemplate()
 {
