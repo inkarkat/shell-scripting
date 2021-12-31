@@ -1,0 +1,45 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Evaluate (exported) environment variables (\$VARIABLE / \${VARIABLE}) and shell
+command substitutions (\$(COMMAND) / \`COMMAND\`) inside TEMPLATE-FILE (the
+first line will be dropped if it looks like a #! shebang) and print the result /
+write the result to TARGET-FILE. Backslashes must be doubled; all other
+characters can remain as-is, like in a double-quoted string in the shell.
+HELPTEXT
+    echo
+    printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" '-f|--file TEMPLATE-FILE [TARGET-FILE]'
+    printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" '[--] TARGET-FILE TEMPLATE-FILE'
+    echo
+    cat <<HELPSHEBANG
+This can be used as a simple template expander where the template file uses a
+shebang to evaluate itself:
+HELPSHEBANG
+    printf '#!%q %s\nTEMPLATE-TEXT\n...\n' "$(basename "$1")" '-f|--file|TARGET-FILE'
+    printf 'Usage: TEMPLATE-FILE %s\n' '[TARGET-FILE]'
+}
+
+templateFile=
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --file|-f)		shift; templateFile="$1"; shift;;
+    --)			shift;;
+esac
+
+if [ -n "$templateFile" ]; then
+    case $# in
+	0) exec evalFile -- "$templateFile";;
+	1) exec evalFile -- "$templateFile" > "$1";;
+	*)  printUsage "$0" >&2
+	    exit 2
+	    ;;
+    esac
+else
+    if [ $# -ne 2 ]; then
+	printUsage "$0" >&2
+	exit 2
+    fi
+    exec evalFile -- "$2" > "$1"
+fi
