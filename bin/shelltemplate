@@ -28,13 +28,13 @@ case "$1" in
     --)			shift;;
 esac
 
+printEvaluatedTemplateWithoutShebang()
+{
+    evalFile -- "${1:?}"
+}
 evalTemplate()
 {
-    if [ $# -eq 1 ]; then
-	exec evalFile -- "$1"
-    else
-	exec evalFile -- "$1" > "$2"
-    fi
+    eval 'printEvaluatedTemplateWithoutShebang "${1:?}"' ${2:+'> "$2"'}
 }
 
 if [ -n "$templateFile" ]; then
