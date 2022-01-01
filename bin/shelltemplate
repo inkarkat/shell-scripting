@@ -65,7 +65,12 @@ printEvaluatedTemplateWithoutShebang()
     evalFile -- "${1:?}" | sed -e "1{ /^#!.*[[:space:]/]${literalScriptName}\\(\$\\|[[:space:]]\\)/{ N; s/\\n\$//; D } }"
 }
 if [ -n "$targetFilespec" ]; then
-    printEvaluatedTemplateWithoutShebang "$templateFilespec" > "$targetFilespec"
+    TMPFILE="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+    [ "${DEBUG:-}" ] || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
+
+    printEvaluatedTemplateWithoutShebang "$templateFilespec" > "$TMPFILE" && \
+	cp --force -- "$TMPFILE" "$targetFilespec"
+	# Preserve original file mode by using cp && rm instead of mv: "In the absence of --preserve, the permissions of existing destination files are unchanged."
 else
     printEvaluatedTemplateWithoutShebang "$templateFilespec"
 fi

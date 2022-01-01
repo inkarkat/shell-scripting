@@ -17,3 +17,17 @@ export EMPTY=''
     [[ "$output" =~ 'unexpected EOF while looking for matching `"'\' ]]
     [[ "$output" =~ 'syntax error: unexpected end of file'$ ]]
 }
+
+@test "eval error on undefined variable prevents override of existing target" {
+    shelltemplate --target "$TARGET_FILE" "${BATS_TEST_DIRNAME}/input.txt"
+    run shelltemplate --target "$TARGET_FILE" "${BATS_TEST_DIRNAME}/undefinedError.txt"
+    [ $status -eq 1 ]
+    [ "$(cat "$TARGET_FILE")" = "$expected" ]
+}
+
+@test "eval error on shell syntax error prevents override of existing target" {
+    shelltemplate --target "$TARGET_FILE" "${BATS_TEST_DIRNAME}/input.txt"
+    run shelltemplate --target "$TARGET_FILE" "${BATS_TEST_DIRNAME}/syntaxError.txt"
+    [ $status -eq 1 ]
+    [ "$(cat "$TARGET_FILE")" = "$expected" ]
+}
