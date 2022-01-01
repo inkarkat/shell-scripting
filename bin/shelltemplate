@@ -5,9 +5,9 @@ printUsage()
     cat <<HELPTEXT
 Evaluate (exported) environment variables (\$VARIABLE / \${VARIABLE}) and shell
 command substitutions (\$(COMMAND) / \`COMMAND\`) inside TEMPLATE-FILE (the
-first line will be dropped if it looks like a #! shebang) and print the result /
-write the result to TARGET-FILE. Backslashes must be doubled; all other
-characters can remain as-is, like in a double-quoted string in the shell.
+first line will be dropped if it looks like a #! shebang invoking it) and print
+the result / write the result to TARGET-FILE. Backslashes must be doubled; all
+other characters can remain as-is, like in a double-quoted string in the shell.
 HELPTEXT
     echo
     printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" '-f|--file TEMPLATE-FILE [TARGET-FILE]'
@@ -30,7 +30,9 @@ esac
 
 printEvaluatedTemplateWithoutShebang()
 {
-    evalFile -- "${1:?}" | sed -e '1{ /^#!/d }'
+    local -r scriptName="$(basename -- "${BASH_SOURCE[0]}")"
+    local -r literalScriptName="$(printf %s "$scriptName" | sed -e 's/[][\$*.^/]/\\&/g')"
+    evalFile -- "${1:?}" | sed -e "1{ /^#!.*[[:space:]/]${literalScriptName}\\(\$\\|[[:space:]]\\)/d }"
 }
 evalTemplate()
 {
