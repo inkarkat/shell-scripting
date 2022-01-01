@@ -1,0 +1,3 @@
+This ${IS_NOT_DEFINED:-defaulted} variable is still fine.
+But ${shouldBeClosed breaks the evaluation.
+${EMPTY?} would, too.
