@@ -10,6 +10,12 @@ EOF
 )"
 
 export TARGET_FILE="${BATS_TMPDIR}/output.txt"
+
 setup() {
     rm -f -- "$TARGET_FILE"
+    ln -s -- "$(command -v shelltemplate)" /tmp/shelltemplate
+}
+
+teardown() {
+    rm -f -- /tmp/shelltemplate
 }
