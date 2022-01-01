@@ -3,7 +3,7 @@
 load fixture
 
 @test "different shebang is kept" {
-    run shelltemplate --file "${BATS_TEST_DIRNAME}/different-shebang"
+    run shelltemplate "${BATS_TEST_DIRNAME}/different-shebang"
     [ $status -eq 0 ]
     [ "$output" = "#!/bin/bash
 $expected" ]
