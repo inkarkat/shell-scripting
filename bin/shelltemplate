@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 printUsage()
 {
@@ -63,9 +64,13 @@ printEvaluatedTemplateWithoutShebang()
     local -r literalScriptName="$(printf %s "$scriptName" | sed -e 's/[][\$*.^/]/\\&/g')"
     evalFile -- "${1:?}" | sed -e "1{ /^#!.*[[:space:]/]${literalScriptName}\\(\$\\|[[:space:]]\\)/{ N; s/\\n\$//; D } }"
 }
-evalTemplate()
-{
-    eval 'printEvaluatedTemplateWithoutShebang "${1:?}"' ${2:+'> "$2"'}
-}
+if [ -n "$targetFilespec" ]; then
+    TMPFILE="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+    [ "${DEBUG:-}" ] || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
 
-evalTemplate "$templateFilespec" "$targetFilespec"
+    printEvaluatedTemplateWithoutShebang "$templateFilespec" > "$TMPFILE" && \
+	cp --force -- "$TMPFILE" "$targetFilespec"
+	# Preserve original file mode by using cp && rm instead of mv: "In the absence of --preserve, the permissions of existing destination files are unchanged."
+else
+    printEvaluatedTemplateWithoutShebang "$templateFilespec"
+fi
