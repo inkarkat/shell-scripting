@@ -64,9 +64,8 @@ printEvaluatedTemplateWithoutShebang()
     local -r literalScriptName="$(printf %s "$scriptName" | sed -e 's/[][\$*.^/]/\\&/g')"
     evalFile -- "${1:?}" | sed -e "1{ /^#!.*[[:space:]/]${literalScriptName}\\(\$\\|[[:space:]]\\)/{ N; s/\\n\$//; D } }"
 }
-evalTemplate()
-{
-    eval 'printEvaluatedTemplateWithoutShebang "${1:?}"' ${2:+'> "$2"'}
-}
-
-evalTemplate "$templateFilespec" "$targetFilespec"
+if [ -n "$targetFilespec" ]; then
+    printEvaluatedTemplateWithoutShebang "$templateFilespec" > "$targetFilespec"
+else
+    printEvaluatedTemplateWithoutShebang "$templateFilespec"
+fi
