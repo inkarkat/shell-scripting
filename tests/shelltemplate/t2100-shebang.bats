@@ -16,6 +16,13 @@ load fixture
     [ "$(cat "$TARGET_FILE")" = "$expected" ]
 }
 
+@test "shebang to passed --target file" {
+    run "${BATS_TEST_DIRNAME}/shebang-input" --target "$TARGET_FILE"
+    [ $status -eq 0 ]
+    [ "$output" = "" ]
+    [ "$(cat "$TARGET_FILE")" = "$expected" ]
+}
+
 @test "shebang with two passed files gives error and usage" {
     run "${BATS_TEST_DIRNAME}/shebang-input" "$TARGET_FILE" additional.txt
     [ $status -eq 2 ]
