@@ -2,8 +2,6 @@
 
 load fixture
 
-PATH="${BATS_TEST_DIRNAME}:$PATH"
-
 @test "shebang to standard out" {
     run "${BATS_TEST_DIRNAME}/shebang-input"
     [ $status -eq 0 ]

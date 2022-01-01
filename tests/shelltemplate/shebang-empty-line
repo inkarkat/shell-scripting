@@ -1,0 +1,4 @@
+#!/tmp/shelltemplate -f
+
+This is a ${WHAT:+"}${WHAT}${WHAT:+" }file on $HOST_VAR with ${PASSWORD:-undefined}.
+All on `uname`, to be exact $(uname -o).

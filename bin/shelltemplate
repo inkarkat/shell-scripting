@@ -32,7 +32,7 @@ printEvaluatedTemplateWithoutShebang()
 {
     local -r scriptName="$(basename -- "${BASH_SOURCE[0]}")"
     local -r literalScriptName="$(printf %s "$scriptName" | sed -e 's/[][\$*.^/]/\\&/g')"
-    evalFile -- "${1:?}" | sed -e "1{ /^#!.*[[:space:]/]${literalScriptName}\\(\$\\|[[:space:]]\\)/d }"
+    evalFile -- "${1:?}" | sed -e "1{ /^#!.*[[:space:]/]${literalScriptName}\\(\$\\|[[:space:]]\\)/{ N; s/\\n\$//; D } }"
 }
 evalTemplate()
 {

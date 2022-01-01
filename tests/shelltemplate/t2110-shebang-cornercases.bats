@@ -6,6 +6,18 @@ load fixture
     run shelltemplate --file "${BATS_TEST_DIRNAME}/different-shebang"
     [ $status -eq 0 ]
     [ "$output" = "#!/bin/bash
-This is a \"test input\" file on testhost with undefined.
-All on $(uname), to be exact $(uname -o)." ]
+$expected" ]
+}
+
+@test "second, different shebang is kept" {
+    run "${BATS_TEST_DIRNAME}/two-shebangs"
+    [ $status -eq 0 ]
+    [ "$output" = "#!/bin/bash
+$expected" ]
+}
+
+@test "empty second line after shebang is deleted" {
+    run "${BATS_TEST_DIRNAME}/shebang-empty-line"
+    [ $status -eq 0 ]
+    [ "$output" = "$expected" ]
 }
