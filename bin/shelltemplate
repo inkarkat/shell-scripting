@@ -69,8 +69,11 @@ if [ -n "$targetFilespec" ]; then
     [ "${DEBUG:-}" ] || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
 
     printEvaluatedTemplateWithoutShebang "$templateFilespec" > "$TMPFILE" && \
-	cp --force -- "$TMPFILE" "$targetFilespec"
-	# Preserve original file mode by using cp && rm instead of mv: "In the absence of --preserve, the permissions of existing destination files are unchanged."
+	if [ -h "$targetFilespec" -a ! -e "$targetFilespec" ]; then
+	    cat -- "$TMPFILE" > "$targetFilespec"	# Shell redirection re-creates a dangling symlink instead of failing like cp.
+	else
+	    cp --force -- "$TMPFILE" "$targetFilespec"	# Preserve original file mode by using cp && rm instead of mv: "In the absence of --preserve, the permissions of existing destination files are unchanged."
+	fi && rm --force -- "$TMPFILE" && trap EXIT
 else
     printEvaluatedTemplateWithoutShebang "$templateFilespec"
 fi
