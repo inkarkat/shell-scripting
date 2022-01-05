@@ -7,7 +7,7 @@ printUsage()
 Create an executable shell script from standard input.
 HELPTEXT
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--sudo] SCRIPT-FILE [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--sudo] [--] SCRIPT-FILE [-?|-h|--help]'
 }
 
 isSudo=
@@ -15,6 +15,7 @@ SUDO=
 case "$1" in
     --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
     --sudo)		shift; isSudo=t;;
+    --)			shift;;
 esac
 if [ $# -ne 1 ]; then
     printUsage "$0" >&2
