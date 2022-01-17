@@ -7,7 +7,7 @@ printUsage()
 Create an executable shell script from standard input.
 HELPTEXT
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--bash|--shebang #!SHELL [--sourced]] [--sudo] [--] SCRIPT-FILE [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--bash|--posix|--shebang #!SHELL [--sourced]] [--sudo] [--] SCRIPT-FILE [-?|-h|--help]'
 }
 
 isSudo=
@@ -20,6 +20,7 @@ do
 	--help|-h|-\?)	    shift; printUsage "$0"; exit 0;;
 	--sudo)		    shift; isSudo=t;;
 	--bash)		    shift; shebang='#!/bin/bash';;
+	--posix)	    shift; shebang='#!/bin/sh';;
 	--shebang)	    shift; shebang="$1"; shift;;
 	--sourced)	    shift; isSourced=t;;
 	--)		    shift; break;;
