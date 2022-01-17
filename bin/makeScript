@@ -7,16 +7,27 @@ printUsage()
 Create an executable shell script from standard input.
 HELPTEXT
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--sudo] [--] SCRIPT-FILE [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--bash|--posix|--shebang #!SHELL [--sourced]] [--sudo] [--] SCRIPT-FILE [-?|-h|--help]'
 }
 
 isSudo=
 SUDO=
-case "$1" in
-    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
-    --sudo)		shift; isSudo=t;;
-    --)			shift;;
-esac
+shebang=
+isSourced=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	    shift; printUsage "$0"; exit 0;;
+	--sudo)		    shift; isSudo=t;;
+	--bash)		    shift; shebang='#!/bin/bash';;
+	--posix)	    shift; shebang='#!/bin/sh';;
+	--shebang)	    shift; shebang="$1"; shift;;
+	--sourced)	    shift; isSourced=t;;
+	--)		    shift; break;;
+	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		    break;;
+    esac
+done
 if [ $# -ne 1 ]; then
     printUsage "$0" >&2
     exit 2
@@ -25,11 +36,26 @@ targetFilespec="${1:?}"; shift
 
 [ "$isSudo" ] && [ $EUID -ne 0 ] && [ ! -w "$(dirname -- "$targetFilespec")" ] && SUDO=sudo
 
-if [ -n "$SUDO" ]; then
-    $SUDO tee -- "$targetFilespec" >/dev/null
-else
-    cat > "$targetFilespec"
-fi
+insertShebang()
+{
+    sed -e "1i\\
+${shebang//\\/\\\\}${isSourced:+ source-this-script}\\
+"
+}
+
+slurpInput()
+{
+    if [ -n "$SUDO" ]; then
+	$SUDO tee -- "$targetFilespec" >/dev/null
+    else
+	cat > "$targetFilespec"
+    fi
+}
+
+# Do the shebang insertion as an upstream pipeline step for easy composition and
+# to maintain the error handling of empty input.
+eval "${shebang:+insertShebang | }slurpInput"
+
 if [ ! -s "$targetFilespec" ]; then
     echo >&2 'ERROR: No input'
     $SUDO rm --force -- "$targetFilespec" 2>/dev/null
