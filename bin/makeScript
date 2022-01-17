@@ -52,11 +52,7 @@ slurpInput()
     fi
 }
 
-if [ -n "$shebang" ]; then
-    insertShebang | slurpInput
-else
-    slurpInput
-fi
+eval "${shebang:+insertShebang | }slurpInput"
 
 if [ ! -s "$targetFilespec" ]; then
     echo >&2 'ERROR: No input'
