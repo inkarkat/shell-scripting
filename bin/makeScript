@@ -7,12 +7,13 @@ printUsage()
 Create an executable shell script from standard input.
 HELPTEXT
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--bash|--shebang #!SHELL] [--sudo] [--] SCRIPT-FILE [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[--bash|--shebang #!SHELL [--sourced]] [--sudo] [--] SCRIPT-FILE [-?|-h|--help]'
 }
 
 isSudo=
 SUDO=
 shebang=
+isSourced=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -20,6 +21,7 @@ do
 	--sudo)		    shift; isSudo=t;;
 	--bash)		    shift; shebang='#!/bin/bash';;
 	--shebang)	    shift; shebang="$1"; shift;;
+	--sourced)	    shift; isSourced=t;;
 	--)		    shift; break;;
 	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		    break;;
@@ -44,7 +46,7 @@ slurpInput()
 
 if [ -n "$shebang" ]; then
     sed -e "1i\\
-${shebang//\\/\\\\}\\
+${shebang//\\/\\\\}${isSourced:+ source-this-script}\\
 " | slurpInput
 else
     slurpInput
