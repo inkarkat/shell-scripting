@@ -52,6 +52,8 @@ slurpInput()
     fi
 }
 
+# Do the shebang insertion as an upstream pipeline step for easy composition and
+# to maintain the error handling of empty input.
 eval "${shebang:+insertShebang | }slurpInput"
 
 if [ ! -s "$targetFilespec" ]; then
