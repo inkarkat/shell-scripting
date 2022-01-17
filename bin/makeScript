@@ -36,6 +36,13 @@ targetFilespec="${1:?}"; shift
 
 [ "$isSudo" ] && [ $EUID -ne 0 ] && [ ! -w "$(dirname -- "$targetFilespec")" ] && SUDO=sudo
 
+insertShebang()
+{
+    sed -e "1i\\
+${shebang//\\/\\\\}${isSourced:+ source-this-script}\\
+"
+}
+
 slurpInput()
 {
     if [ -n "$SUDO" ]; then
@@ -46,9 +53,7 @@ slurpInput()
 }
 
 if [ -n "$shebang" ]; then
-    sed -e "1i\\
-${shebang//\\/\\\\}${isSourced:+ source-this-script}\\
-" | slurpInput
+    insertShebang | slurpInput
 else
     slurpInput
 fi
