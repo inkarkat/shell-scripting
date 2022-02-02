@@ -1,0 +1,91 @@
+#!/bin/bash
+
+: ${ARGSORERROR_ARG_WHAT:=arguments}
+: ${ARGSORERROR_FAILURE_STATUS:=99}
+: ${ARGSORERROR_ARG_MARKER='{}'}
+argMarker="$ARGSORERROR_ARG_MARKER"; unset ARGSORERROR_ARG_MARKER
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: [ARGSORERROR_ARG_WHAT=%q] [ARGSORERROR_FAILURE_STATUS=%d] %q %s\n' "$ARGSORERROR_ARG_WHAT" "$ARGSORERROR_FAILURE_STATUS" \
+	"$(basename "$1")" "[-m|--message ERROR-MESSAGE] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} ; [--] ARGUMENT [...] [-?|-h|--help]"
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Execute COMMAND(s) if ARGUMENT(s) are supplied; else print ERROR-MESSAGE and fail.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --message|-m ERROR-MESSAGE
+			Print ERROR-MESSAGE if no ARGUMENTs are supplied; the
+			default is "ERROR: No arguments."
+    --command|-c CMD	Execute CMD as a command-line. ARGUMENTs ${argMarker:+either }are
+			appended${argMarker:+ or replace any $argMarker marker} inside COMMANDLINE.
+    --exec COMMAND ;	Execute COMMAND; all following arguments are taken to be
+			arguments to the COMMAND until an argument consisting of
+			';' is encountered. ARGUMENTs ${argMarker:+either }are appended${argMarker:+ or
+			replace any $argMarker marker} inside COMMANDLINE.
+EXIT STATUS:
+    *   any exit status from COMMAND(s)
+    2	Bad invocation, wrong or missing command-line arguments.
+    $ARGSORERROR_FAILURE_STATUS	No ARGUMENTs supplied; ERROR-MESSAGE given.
+HELPTEXT
+}
+
+errorMessage="ERROR: No ${ARGSORERROR_ARG_WHAT}."
+typeset -a commands=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--message|-m)	shift; errorMessage="$1"; shift;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--exec)		shift
+			cmd=
+			printf -v escapedFileMarker %q "$argMarker"
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedFileMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: -exec command must be concluded with ;!"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+=(${commands:+;} "$cmd")
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND ... ;.'
+    echo
+    printUsage "$0"
+    exit 2
+elif [ $# -eq 0 ]; then
+    [ -z "$errorMessage" ] || printf '%s\n' "$errorMessage"
+    exit $ARGSORERROR_FAILURE_STATUS
+fi >&2
+
+printf -v quotedArgs '%q ' "$@"; quotedArgs="${quotedArgs% }"
+typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedArgs}")
+[ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedArgs")
+eval "${interpolatedCommands[@]}"
