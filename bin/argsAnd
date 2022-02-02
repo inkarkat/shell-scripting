@@ -1,0 +1,93 @@
+#!/bin/bash
+
+: ${ARGSAND_ARG_MARKER='{}'}
+argMarker="$ARGSAND_ARG_MARKER"; unset ARGSAND_ARG_MARKER
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-o|--or \"NOOUT-COMMANDLINE\" [...]] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} ; [--] ARGUMENT [...] [-?|-h|--help]"
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+If ARGUMENT(s) are supplied, execute COMMAND(s).
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --or|-o NOOUT-COMMANDLINE
+			Execute NOOUT-COMMANDLINE if no (accepted) output has
+			occurred. With this, you can handle both outcomes; i.e.
+			either this or COMMAND(s) will be executed, never both.
+    --command|-c CMD	Execute CMD as a command-line. ARGUMENTs ${argMarker:+either }are
+			appended${argMarker:+ or replace any $argMarker marker} inside COMMANDLINE.
+    --exec COMMAND ;	Execute COMMAND; all following arguments are taken to be
+			arguments to the COMMAND until an argument consisting of
+			';' is encountered. ARGUMENTs ${argMarker:+either }are appended${argMarker:+ or
+			replace any $argMarker marker} inside COMMANDLINE.
+EXIT STATUS:
+    0	Output occurred, and COMMAND(s) executed successfully.
+    1	No ARGUMENT(s) (and NOOUT-COMMANDLINE executed successfully).
+    2	Bad invocation, wrong or missing command-line arguments.
+    125	COMMAND(s) have failed.
+    126	NOOUT-COMMANDLINE has failed.
+HELPTEXT
+}
+
+typeset -a commands=()
+typeset -a noOutputCommands=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--or|-o)	shift; noOutputCommands+=(${noOutputCommands:+;} "$1"); shift;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--exec)		shift
+			cmd=
+			printf -v escapedFileMarker %q "$argMarker"
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedFileMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: -exec command must be concluded with ;!"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+=(${commands:+;} "$cmd")
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND ... ;.'
+    echo
+    printUsage "$0"
+    exit 2
+elif [ $# -eq 0 ]; then
+    if [ ${#noOutputCommands[@]} -gt 0 ]; then
+	eval "${noOutputCommands[@]}" || exit 126
+    fi
+    exit 1
+fi >&2
+
+printf -v quotedArgs '%q ' "$@"; quotedArgs="${quotedArgs% }"
+typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedArgs}")
+[ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedArgs")
+eval "${interpolatedCommands[@]}" || exit 125
