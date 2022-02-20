@@ -7,8 +7,11 @@ printUsage()
 Evaluate (exported) environment variables (\$VARIABLE / \${VARIABLE}) and shell
 command substitutions (\$(COMMAND) / \`COMMAND\`) inside TEMPLATE-FILE (the
 first line will be dropped if it looks like a #! shebang invoking it) and print
-the result / write the result to TARGET-FILE. Backslashes must be doubled; all
-other characters can remain as-is, like in a double-quoted string in the shell.
+the result / write the result to TARGET-FILE (overwriting any existing file).
+Backslashes must be doubled; all other characters can remain as-is, like in a
+double-quoted string in the shell.
+Returns any Bash failure from template expansion, or failure to write to the
+TARGET-FILE.
 HELPTEXT
     echo
     printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" '[--] TEMPLATE-FILE [TARGET-FILE]'
