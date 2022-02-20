@@ -1,21 +1,44 @@
 #!/bin/bash
 shopt -qs extglob
 
-printUsage()
+printShortUsage()
 {
-    cat <<HELPTEXT
-Evaluate (exported) environment variables (\$VARIABLE / \${VARIABLE}) and shell
-command substitutions (\$(COMMAND) / \`COMMAND\`) inside FILE(s) / standard
-input and print the result. Backslashes must be doubled; all other characters
-can remain as-is, like in a double-quoted string in the shell.
-This can be used as a simple template expander.
-HELPTEXT
-    echo
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
     printf 'Usage: [VAR=... [...]] %q %s\n' "$(basename "$1")" '[--] FILE [...] [-?|-h|--help]'
     printf 'Usage: cat FILE [...] | [VAR=... [...]] %q [-]\n' "$(basename "$1")"
 }
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Evaluate (exported) environment variables (\$VARIABLE / \${VARIABLE}) and shell
+command substitutions (\$(COMMAND) / \`COMMAND\`) inside FILE(s) / standard
+input and print the result.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+Backslashes must be doubled; all other characters can remain as-is, like in a
+double-quoted string in the shell. This can be used as a simple template
+expander.
+
+EXIT STATUS:
+    0	Complete success.
+    *   any failure from Bash
+HELPTEXT
+}
 case "$1" in
-    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
     --)			shift;;
 esac
 
