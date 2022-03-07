@@ -1,0 +1,35 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Obtain an overall status from multiple invocations, with 99 signifying no action
+or inapplicability; that status is only returned if all invocations yield that.
+Else, the last error is returned, or 0 if everything is successful (or 99).
+HELPTEXT
+    echo
+    printf 'Usage: status=; COMMAND; status=$(%q %s); COMMAND; status=...; exit $status\n' "$(basename "$1")" '"$status" $?'
+}
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+esac
+
+status="${1?}"; shift
+newStatus="${1:?}"; shift
+if [ $newStatus -eq 0 -a ${status:-99} -eq 99 ]; then
+    # Record success.
+    echo 0
+elif [ $newStatus -eq 99 ]; then
+    # No data keeps a previous success or error or initializes to "no data".
+    if [ -z "$status" ]; then
+	echo $newStatus
+    else
+	echo $status
+    fi
+elif [ $newStatus -gt 0 ]; then
+    # Set error.
+    echo $newStatus
+else
+    # Keep previous success or error.
+    echo $status
+fi
