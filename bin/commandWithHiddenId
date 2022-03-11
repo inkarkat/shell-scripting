@@ -124,11 +124,11 @@ output=($(
     if [ "$isPiped" ]; then
 	printf '%s\n' "${titles[@]}" | eval "${targetCommands[@]}"
     else
-	typeset -a e=('"${titles[@]}"')
+	typeset -a e=("${titles[@]}")
 	typeset -a interpolatedCommands=("${targetCommands[@]//"$titleMarker"/'"${titles[@]}"'}")
 	[ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
 
-	eval "${interpolatedCommands[@]}" "${e[@]}"
+	eval "${interpolatedCommands[@]}" '"${e[@]}"'
     fi
 )) || exit $?
 

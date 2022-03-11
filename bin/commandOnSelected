@@ -549,7 +549,7 @@ elif [ -n "$selectionMessage" ] || [ "$isInteractiveSelection" -a -n "$interacti
 	printIfDefined "$selectionMessage" "$selectedEntriesCharacterization"
 fi
 
-typeset -a e=('"${selectedEntries[@]}"')
+typeset -a e=("${selectedEntries[@]}")
 if [ ${#targetCommands[@]} -gt 0 ]; then
     typeset -a interpolatedCommands=("${targetCommands[@]//"$entriesMarker"/'"${selectedEntries[@]}"'}")
     [ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
@@ -557,4 +557,4 @@ else
     typeset -a interpolatedCommands=("printf '%s\\n'")
 fi
 
-eval "${interpolatedCommands[@]}" "${e[@]}"
+eval "${interpolatedCommands[@]}" '"${e[@]}"'
