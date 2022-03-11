@@ -81,8 +81,6 @@ if [ ${#targetCommands[@]} -eq 0 ]; then
     exit 2
 fi >&2
 
-set -o noglob
-IFS=$'\n'
 typeset -a entries=()
 if [ $# -gt 0 ]; then
     entries=("${@//$'\n'/ }")
@@ -96,13 +94,13 @@ else
     entrySource="$generator"
 fi
 if [ "$entrySource" ]; then
-    entries=($(eval "$entrySource" '"${entries[@]}"'))
+    readarray -t entries < <(eval "$entrySource" '"${entries[@]}"')
 fi
 [ ${#entries[@]} -eq 0 ] && exit 124
 
 typeset -a ids=("${entries[@]%%+([$'\t '])*}")
-typeset -a titles=($(printf '%s\n' "${entries[@]#*+([$'\t '])}" | makeLinesUnique))
-duplicateIds=($(printf '%s\n' "${ids[@]}" | sort | uniq --repeated))
+readarray -t titles < <(printf '%s\n' "${entries[@]#*+([$'\t '])}" | makeLinesUnique)
+readarray -t duplicateIds < <(printf '%s\n' "${ids[@]}" | sort | uniq --repeated)
 if [ ${#duplicateIds[@]} -gt 0 ]; then
     printf >&2 'ERROR: Duplicate IDs: %s\n' "$(joinBy ', ' "${duplicateIds[@]}")"
     exit 125
@@ -120,7 +118,7 @@ do
     titlesToIds["${titles[$i]}"]="${ids[$i]}"
 done
 
-output=($(
+readarray -t output < <(
     if [ "$isPiped" ]; then
 	printf '%s\n' "${titles[@]}" | eval "${targetCommands[@]}"
     else
@@ -130,7 +128,11 @@ output=($(
 
 	eval "${interpolatedCommands[@]}" '"${e[@]}"'
     fi
-)) || exit $?
+    printf '\n%d\n' "$?"
+)   # Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+[ ${output[-1]} -ne 0 ] && exit ${output[-1]}
+unset "output[$((${#output[@]}-1))]"
+[ -z "${output[-1]}" ] && unset "output[$((${#output[@]}-1))]"
 
 typeset -a selectedIds=()
 for outLine in "${output[@]}"
