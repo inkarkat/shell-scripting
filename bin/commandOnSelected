@@ -305,8 +305,7 @@ else
     }
     selectCandidates()
     {
-	local entry
-	select entry
+	local entry; select entry
 	do
 	    if [ "$entry" ]; then
 		selectedEntries+=("$entry")
@@ -435,7 +434,7 @@ EOF
 	    fi
 
 	    [ ${#selectedEntries[@]} -eq 1 -a ! "$isMultiSelect" ] && break
-	done
+	done < "${USERQUERY_INPUT:-/dev/tty}"
 	[ "$isSubtract" ] && invertCandidates "$@"
 	shift
     }
@@ -509,6 +508,7 @@ EOF
 	"$matchFunction" "${entries[@]}"
 	[ ${#selectedEntries[@]} -eq 0 ] && printf >&2 'No matches for %s.\n' "$(joinBy ' or ' "${matches[@]}")"
     else
+	userprequery || exit $?
 	if [ "$isFuzzySelection" ]; then
 	    selectFuzzy "${entries[@]}"
 	else
