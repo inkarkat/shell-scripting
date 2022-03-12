@@ -261,10 +261,7 @@ if [ -n "$entrySource" ]; then
     interpolatedEntrySource="${entrySource//"$filterMarker"/$quotedEntries}"
     [ "$interpolatedEntrySource" = "$entrySource" ] || e=()
 
-    saveIFS=$IFS
-    IFS=$'\n'
-    entries=($(eval "$interpolatedEntrySource" '"${e[@]}"'))
-    IFS=$saveIFS
+    readarray -t entries < <(eval "$interpolatedEntrySource" '"${e[@]}"')
 fi
 
 
@@ -420,8 +417,7 @@ EOF
 			eval "selected=({${REPLY%-}..$#})"
 			selectByCounts "$@"
 			;;
-		    *)  local IFS=$'\n'
-			typeset -a filteredEntries=($(unset IFS; printf '%s\n' "$@" | grep $REPLY))
+		    *)	typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | grep $REPLY)
 			if [ ${#filteredEntries[@]} -eq 0 ]; then
 			    echo >&2 "No results from filtering."
 			else
@@ -504,8 +500,7 @@ EOF
     }
     selectFuzzy()
     {
-	local IFS=$'\n'
-	selectedEntries+=($(printf '%s\n' "$@" | fzf ${isMultiSelect:+--multi}))
+	readarray -O ${#selectedEntries[@]} -t selectedEntries < <(printf '%s\n' "$@" | fzf ${isMultiSelect:+--multi})
     }
 
     if [ ${#selected[@]} -gt 0 ]; then
@@ -541,10 +536,7 @@ if [ -n "$postFilter" ]; then
     interpolatedPostFilter="${postFilter//"$postFilterMarker"/$quotedSelectedEntries}"
     [ "$interpolatedPostFilter" = "$postFilter" ] || se=()
 
-    saveIFS=$IFS
-    IFS=$'\n'
-    selectedEntries=($(eval "$interpolatedPostFilter" '"${se[@]}"'))
-    IFS=$saveIFS
+    readarray -t selectedEntries < <(eval "$interpolatedPostFilter" '"${se[@]}"')
 fi
 
 # Print any messages only now after a potential post-filter has been applied.
@@ -557,7 +549,7 @@ elif [ -n "$selectionMessage" ] || [ "$isInteractiveSelection" -a -n "$interacti
 	printIfDefined "$selectionMessage" "$selectedEntriesCharacterization"
 fi
 
-typeset -a e=('"${selectedEntries[@]}"')
+typeset -a e=("${selectedEntries[@]}")
 if [ ${#targetCommands[@]} -gt 0 ]; then
     typeset -a interpolatedCommands=("${targetCommands[@]//"$entriesMarker"/'"${selectedEntries[@]}"'}")
     [ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
@@ -565,4 +557,4 @@ else
     typeset -a interpolatedCommands=("printf '%s\\n'")
 fi
 
-eval "${interpolatedCommands[@]}" "${e[@]}"
+eval "${interpolatedCommands[@]}" '"${e[@]}"'
