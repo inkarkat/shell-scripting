@@ -5,9 +5,10 @@ printUsage()
     cat <<HELPTEXT
 This command evaluates the color arguments (any other arguments are ignored) and
 returns whether color output should be explicitly enabled.
+
 # Example: Explicitly enable color only if the user explicitly turned it on.
 HELPTEXT
-    printf '%q "$@" && typeset colorArg=(--color=always) || typeset colorArg=(--no-color)\n' "$(basename "$1")"
+    printf "%q \"\$@\" && typeset colorArg=('--color=always') || typeset colorArg=('--no-color')\\n" "$(basename "$1")"
 }
 
 typeset -a colorArg=()
