@@ -10,7 +10,7 @@ Execute COMMAND while replacing all occurrences of $argMarker in its argument wi
 LAST-ARGUMENT. (Can be useful when xargs doesn't support the -I replace-str (as
 in Busybox xargs).)
 HELPTEXT
-    printf 'Usage: %q %s\n' "$(basename "$1")" 'COMMAND [ARG ...] LAST-ARGUMENT [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "COMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] LAST-ARGUMENT [-?|-h|--help]"
 }
 case "$1" in
     --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
