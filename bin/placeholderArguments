@@ -1,0 +1,147 @@
+#!/bin/bash
+
+: ${PLACEHOLDERARGUMENTS_ARG_MARKER:='{}'}
+argMarker="$PLACEHOLDERARGUMENTS_ARG_MARKER"; unset PLACEHOLDERARGUMENTS_ARG_MARKER
+
+printShortUsage()
+{
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-r|--no-run-if-empty] [-?|-h|--help] ...'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -c|--command \"COMMANDLINE [...] [${argMarker}] [...]\" [-c ...] [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] --exec SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] ; [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -- SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] -- [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -n|--command-arguments N SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] [ARGUMENT ...]"
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Execute COMMAND(s) while replacing all occurrences of $argMarker in its
+arguments with ARGUMENT(s).
+COMMAND (and its ARGUMENT(s)) can be specified in various ways: As one quoted
+argument with -c|--command, arguments after --exec until a ';', separated by
+special arguments --, or (especially useful in scripts when you know the
+\${#ARGS[@]} but cannot influence the contents) by number of arguments.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --no-run-if-empty|-r
+			Don't run COMMANDs  if there are no ARGUMENTs. By
+			default, COMMANDs will be executed without any supplied
+			arguments.
+
+Can be useful in combination with xargs when you want to build up arguments up
+until the limit but cannot simply append the arguments - "xargs -I replace-str"
+implies -L 1 and therefore will only take one input line per command, forcing
+you to abandon -d '\\n' / -0 and into whitespace issues:
+HELPTEXT
+    printf 'Example: cat FILE [...] | xargs %s %q %s\n' "-d '\\n'" "$(basename "$1")" '--exec dump-args -v -- \[ {} \] \;'
+}
+
+isNeedEval=
+typeset -a commands=()
+typeset -a simpleCommand=()
+commandArgumentNum=
+isRunWithEmptyArguments=t
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--no-run-if-empty|-r)
+			shift; isRunWithEmptyArguments=;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--exec)		shift
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    simpleCommand+=("$1")
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: --exec command must be concluded with ;'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			;;
+	--command-arguments|-n)
+			shift; commandArgumentNum="$1"; shift;;
+	--)		break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+
+case "$1" in
+    --) shift
+	while [ $# -gt 0 -a "$1" != '--' ]
+	do
+	    simpleCommand+=("$1")
+	    shift
+	done
+	if [ $# -eq 0 ]; then
+	    echo 'ERROR: -- SIMPLECOMMAND [ARGUMENT ...] must be concluded with --'; echo; printUsage "$0"
+	    exit 2
+	fi >&2
+	shift
+	;;
+    *)	if [ -n "$commandArgumentNum" ]; then
+	    for (( i = 0; i < commandArgumentNum; i++ ))
+	    do
+		simpleCommand+=("$1")
+		shift
+	    done
+	fi
+	;;
+esac
+if [ ${#simpleCommand[@]} -gt 0 ]; then
+    if [ "$isNeedEval" ]; then
+	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+	# undo the effects of eval.
+	printf -v quotedSimpleCommand '%q ' "${simpleCommand[@]}"
+	quotedSimpleCommand="${quotedSimpleCommand% }"
+	printf -v escapedArgMarker %q "$argMarker"
+	commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    else
+	commands=("${simpleCommand[@]}")
+    fi
+fi
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+[ $# -gt 0 ] || [ "$isRunWithEmptyArguments" ] || exit 0
+
+
+if [ "$isNeedEval" ]; then
+    quotedArgs=''; [ $# -gt 0 ] && printf -v quotedArgs '%q ' "$@"; quotedArgs="${quotedArgs% }"
+    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedArgs}")
+    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedArgs")
+
+    eval "${interpolatedCommands[@]}"
+else
+    didInterpolate=
+    typeset -a interpolatedCommands=()
+    for c in "${commands[@]}"
+    do
+    if [ "$c" = "$argMarker" ]; then
+	interpolatedCommands+=("$@")
+	didInterpolate=t
+    else
+	interpolatedCommands+=("$c")
+    fi
+    done
+    [ "$didInterpolate" ] || interpolatedCommands+=("$@")
+
+    "${interpolatedCommands[@]}"
+fi
