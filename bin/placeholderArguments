@@ -43,7 +43,10 @@ Can be useful in combination with xargs when you want to build up arguments up
 until the limit but cannot simply append the arguments - "xargs -I replace-str"
 implies -L 1 and therefore will only take one input line per command, forcing
 you to abandon -d '\\n' / -0 and into whitespace issues:
+Alternative:  Go through an intermediate shell with "\$@" replacing {}:
+sh -c 'dump-args -v -- \[ "\$@" \]' sh ...
 HELPTEXT
+    echo
     printf 'Example: cat FILE [...] | xargs %s %q %s\n' "-d '\\n'" "$(basename "$1")" '--exec dump-args -v -- \[ {} \] \;'
 }
 
