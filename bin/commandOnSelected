@@ -254,7 +254,7 @@ if [ -n "$entrySource" ]; then
     for entry in "${entries[@]}"
     do
 	printf -v entry %q "$entry"
-	quotedEntries="${quotedEntries}${quotedEntries:+ }${entry}"
+	quotedEntries+="${quotedEntries:+ }${entry}"
     done
 
     typeset -a e=("${entries[@]}")
@@ -529,7 +529,7 @@ if [ -n "$postFilter" ]; then
     for selectedEntry in "${selectedEntries[@]}"
     do
 	printf -v selectedEntry %q "$selectedEntry"
-	quotedSelectedEntries="${quotedSelectedEntries}${quotedSelectedEntries:+ }${selectedEntry}"
+	quotedSelectedEntries+="${quotedSelectedEntries:+ }${selectedEntry}"
     done
 
     typeset -a se=("${selectedEntries[@]}")

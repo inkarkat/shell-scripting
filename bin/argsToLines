@@ -78,7 +78,7 @@ linesToSink()
     for arg in "${args[@]}"
     do
 	printf -v arg %q "$arg"
-	quotedArgs="${quotedArgs}${quotedArgs:+ }${arg}"
+	quotedArgs+="${quotedArgs:+ }${arg}"
     done
 
     typeset -a a=("${args[@]}")

@@ -60,7 +60,7 @@ do
 			while [ $# -gt 0 -a "$1" != ';' ]
 			do
 			    printf -v quotedArg '%q' "$1"
-			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedFileMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    cmd+="${cmd:+ }${quotedArg//"$escapedFileMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 			    shift
 			done
 			if [ $# -eq 0 ]; then
