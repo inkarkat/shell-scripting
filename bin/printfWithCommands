@@ -1,14 +1,40 @@
 #!/bin/bash
 
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" 'FORMAT ( -a|--argument ARGUMENT | -c|--command COMMANDLINE ) [...] [-?|-h|--help]'
+}
 printUsage()
 {
-    cat <<HELPTEXT
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
 Format and print ARGUMENTS or the outputs of COMMANDS under control of the
-FORMAT. Unlike "printf FORMAT \$(COMMAND)" this does not ignore errors, but
+FORMAT.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --argument|-a ARG	An argument to be used for the corresponding placeholder
+			in FORMAT.
+    --command|-c CMD	A command line to be executed. If the command succeeds,
+			the output will be used for the corresponding
+			placeholder in FORMAT. If it fails, the whole printing
+			will be aborted and the failing exit status returned.
+
+Unlike "printf FORMAT \$(COMMAND)" this does not ignore errors, but
 instead fails if one of the COMMANDS fails.
 HELPTEXT
-    echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" 'FORMAT ( -c|--command COMMANDLINE | -a|--argument ARGUMENT ) [...] [-?|-h|--help]'
 }
 case "$1" in
     --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
