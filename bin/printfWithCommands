@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" 'FORMAT [--eval] [--failure-output OUTPUT] ( -a|--argument ARGUMENT | -c|--command COMMANDLINE ) [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '-f|--format FORMAT [--eval] [--failure-output OUTPUT] ( -a|--argument ARGUMENT | -c|--command COMMANDLINE ) [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -25,6 +25,8 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --format|-f FORMAT	A printf() character string with format specifications
+			for the following ARGUMENTS and COMMAND outputs.
     --eval		Print an exit command in case of failure that sets the
 			failing exit status in the client. Useful when this
 			command's output is eval()'ed in the client.
@@ -45,8 +47,7 @@ case "$1" in
     --help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 esac
 
-format="$1"; shift
-
+unset format
 isEval=
 failureOutput=
 typeset -a positionalArgs=()
@@ -54,6 +55,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--format|-f)	shift; format="$1"; shift;;
 	--eval)		shift; isEval=t;;
 	--failure-output)
 			shift; failureOutput="$1"; shift;;
@@ -64,10 +66,15 @@ do
 	*)		break;;
     esac
 done
-if [ $# -gt 0 ]; then
-    printUsage "$0" >&2
+if [ -z "${format+t}" ]; then
+    echo 'ERROR: Missing -f|--format FORMAT.'
+    echo
+    printUsage "$0"
     exit 2
-fi
+elif [ $# -gt 0 ]; then
+    printUsage "$0"
+    exit 2
+fi >&2
 
 set -- "${positionalArgs[@]}"
 typeset -a resolvedArgs=()
