@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" 'FORMAT ( -a|--argument ARGUMENT | -c|--command COMMANDLINE ) [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" 'FORMAT [--eval] [--failure-output OUTPUT] ( -a|--argument ARGUMENT | -c|--command COMMANDLINE ) [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -25,6 +25,11 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --eval		Print an exit command in case of failure that sets the
+			failing exit status in the client. Useful when this
+			command's output is eval()'ed in the client.
+    --failure-output OUTPUT
+			Print OUTPUT to standard error in case of failure.
     --argument|-a ARG	An argument to be used for the corresponding placeholder
 			in FORMAT.
     --command|-c CMD	A command line to be executed. If the command succeeds,
@@ -42,11 +47,16 @@ esac
 
 format="$1"; shift
 
+isEval=
+failureOutput=
 typeset -a positionalArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--eval)		shift; isEval=t;;
+	--failure-output)
+			shift; failureOutput="$1"; shift;;
 	--command|-c|--argument|-a)
 			positionalArgs+=("$1" "$2"); shift; shift;;
 	--)		shift; break;;
@@ -64,7 +74,15 @@ typeset -a resolvedArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--command|-c)	shift; resolvedArgs+=("$(eval "$1")") || exit $?; shift;;
+	--command|-c)	shift
+			resolvedArgs+=("$(eval "$1")") || {
+			    status=$?
+			    [ -z "$failureOutput" ] || printf >&2 '%s\n' "$failureOutput"
+			    [ ! "$isEval" ] || printf '(exit %d)' "$status"
+			    exit $status
+			}
+			shift
+			;;
 	--argument|-a)	shift; resolvedArgs+=("$1"); shift;;
     esac
 done
