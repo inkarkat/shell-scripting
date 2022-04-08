@@ -1,0 +1,125 @@
+#!/bin/bash
+set -o pipefail
+
+: ${ARGSTOARGS_ARGS_MARKER='{}'}
+argsMarker="$ARGSTOARGS_ARGS_MARKER"; unset ARGSTOARGS_ARGS_MARKER
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...] [-s|--sink-command SINK-COMMAND]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print all supplied command-line arguments as space / IFS-separated quoted
+arguments to standard output.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    cat <<HELPTEXT
+    --command|-c COMMANDLINE	Pipe the output (if there is any) through
+				COMMANDLINE instead of just printing it.
+    --command-takes-empty|-E	Pipe empty input through COMMANDLINE if there
+				are no arguments (instead of doing nothing).
+    --empty-command|-e EMPTY-COMMANDLINE
+				Invoke EMPTY-COMMANDLINE if there are no
+				arguments.
+    --sink-command|-s SINK-COMMAND
+				Turn IFS-separated arguments emitted by
+				COMMANDLINE back into arguments and pass those
+				to SINK-COMMAND, ${argsMarker:+either} appended${argsMarker:+ or replacing
+				any $argsMarker marker inside SINK-COMMAND}.
+HELPTEXT
+}
+
+typeset -a targetCommands=()
+isCommandTakesEmpty=
+emptyCommand=
+sinkCommand=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--command|-c)	shift; targetCommands+=(${targetCommands:+|} "$1"); shift;;
+	--command-takes-empty|-E)
+			shift; isCommandTakesEmpty=t;;
+	--empty-command|-e)
+			shift; emptyCommand="$1"; shift;;
+	--sink-command|-s)
+			shift; sinkCommand="$1"; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ "$isCommandTakesEmpty" ] && [ "$emptyCommand" ]; then
+    printUsage >&2 "$0"
+    exit 2
+fi
+
+
+printQuotedArgs()
+{
+    # Duplicated to +/\$isQuoted ../../shell-basics/timestamp
+    # Duplicated to ../../shell-basics/bin/echotrace
+    # Duplicated to ../../verbose/bin/verbose
+    local arg quotedArgs=
+    for arg
+    do
+	# Enclose in single quotes if it contains special characters (but not
+	# non-space whitespace), and does not solely consist of that special
+	# character (then, it's shorter to escape: \( vs. '(').
+	if [[ "$arg" =~ [][$\ \`\"?\*{}()\&\;\!~] ]] && [[ ! "$arg" =~ [$'\n\r\t\v'] ]] &&  [ ${#arg} -gt 1 ]; then
+	    if [[ "$arg" =~ \' ]]; then
+		# Decide based on length whether to .\ \ \'\ \ . or '   '\''  .'
+		printf -v sqArg %s "'${arg//\'/\'\\\'\'}'"
+		sqArg="${sqArg#\'\'}"; sqArg="${sqArg%\'\'}"    # Empty '' at the beginning and end can be removed.
+		printf -v arg %q "$arg"
+		[ ${#sqArg} -lt ${#arg} ] && arg="$sqArg"
+	    else
+		printf -v arg %s "'${arg//\'/\'\\\'\'}'"
+	    fi
+	else
+	    printf -v arg %q "$arg"
+	fi
+	quotedArgs+="${quotedArgs:+ }${arg}"
+    done
+    printf '%s\n' "$quotedArgs"
+}
+
+argsToSink()
+{
+    set -o noglob
+    eval "typeset -a args=($(cat))"
+
+    local arg quotedArgs
+    for arg in "${args[@]}"
+    do
+	printf -v arg %q "$arg"
+	quotedArgs+="${quotedArgs:+ }${arg}"
+    done
+
+    typeset -a a=("${args[@]}")
+    local interpolatedCommand="${sinkCommand//"$argsMarker"/$quotedArgs}"
+    [ "$interpolatedCommand" = "$sinkCommand" ] || a=()
+    eval "$interpolatedCommand" '"${a[@]}"'
+}
+
+if [ $# -gt 0 ]; then
+    eval 'printQuotedArgs "$@"' "${targetCommands:+|}" "${targetCommands[@]}" "${sinkCommand:+| argsToSink}"
+elif [ "$isCommandTakesEmpty" ] && [ ${#targetCommands[@]} -gt 0 ]; then
+    printf '' | eval "${targetCommands[@]}" "${sinkCommand:+| argsToSink}"
+elif [ "$emptyCommand" ]; then
+    eval "$emptyCommand" "${sinkCommand:+| argsToSink}"
+fi
