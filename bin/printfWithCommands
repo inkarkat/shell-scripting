@@ -1,0 +1,47 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Format and print ARGUMENTS or the outputs of COMMANDS under control of the
+FORMAT. Unlike "printf FORMAT \$(COMMAND)" this does not ignore errors, but
+instead fails if one of the COMMANDS fails.
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" 'FORMAT ( -c|--command COMMANDLINE | -a|--argument ARGUMENT ) [...] [-?|-h|--help]'
+}
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+esac
+
+format="$1"; shift
+
+# Do a first parse to verify the overall syntax, then repeat with execution.
+typeset -a savedArgs=("$@")
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+	--command|-c)	shift; shift;;
+	--argument|-a)	shift; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -gt 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+set -- "${savedArgs[@]}"
+
+typeset -a resolvedArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--command|-c)	shift; resolvedArgs+=("$(eval "$1")") || exit $?; shift;;
+	--argument|-a)	shift; resolvedArgs+=("$1"); shift;;
+    esac
+done
+
+printf "$format" "${resolvedArgs[@]}"
