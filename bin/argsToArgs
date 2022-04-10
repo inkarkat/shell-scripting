@@ -101,7 +101,7 @@ printQuotedArgs()
 argsToSink()
 {
     set -o noglob
-    eval "typeset -a args=($(cat))"
+    eval "typeset -a args=($(</dev/stdin))"
 
     local arg quotedArgs
     for arg in "${args[@]}"
