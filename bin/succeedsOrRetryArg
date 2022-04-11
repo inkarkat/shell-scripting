@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--first-failure|--either-failure] [-r|--retry-command "RETRY-COMMANDLINE"|--retry-exec SIMPLE-RETRY-COMMAND [...] ; [-r ...]] -c|--command "COMMANDLINE" [-c ...] | [--] SIMPLECOMMAND [...] ARG [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--first-failure|--either-failure] [-r|--retry-command "RETRY-COMMANDLINE"|--retry-exec SIMPLE-RETRY-COMMAND [...] ; [-r ...]] -c|--command "COMMANDLINE" [-c ...] | --exec SIMPLECOMMAND [...] ; | [--] SIMPLECOMMAND [...] ARG [-?|-h|--help]'
 }
 printUsage()
 {
@@ -34,6 +34,13 @@ HELPDESCRIPTION
 			(last exit status wins).
 			By default, 0 is returned if COMMAND succeeds, or else
 			the exit status of RETRY-COMMAND.
+    --command|-c CMD	Execute COMMAND, with ARG ${argMarker:+either }appended to
+			${argMarker:+or replacing any $argMarker marker inside} it.
+    --exec COMMAND [...] ;
+			Execute COMMAND; all following arguments are taken to be
+			arguments to the COMMAND until an argument consisting of
+			';' is encountered, with ARG ${argMarker:+either} appended to
+			${argMarker:+or replacing any $argMarker marker inside} it.
     --retry-command|-r RETRY-COMMAND
 			If COMMAND fails, execute RETRY-COMMAND, with ARG ${argMarker:+either}
 			appended to${argMarker:+ or replacing any $argMarker marker inside} it.
@@ -76,6 +83,22 @@ do
 			shift
 			retryCommands+=(${retryCommands:+;} "$cmd")
 			;;
+	--exec)		shift
+			cmd=
+			printf -v escapedArgMarker %q "$argMarker"
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+=(${commands:+;} "$cmd"); isNeedEval=t
+			;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -102,7 +125,7 @@ if [ $# -ne 0 ]; then
     fi
 fi
 if [ ${#commands[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ;, or SIMPLECOMMAND.'
     echo
     printUsage "$0"
     exit 2
