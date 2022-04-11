@@ -1,0 +1,161 @@
+#!/bin/bash
+
+: ${SUCCEEDSORRETRYARG_ARG_MARKER='{}'}
+argMarker="$SUCCEEDSORRETRYARG_ARG_MARKER"; unset SUCCEEDSORRETRYARG_ARG_MARKER
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--first-failure|--either-failure] [-r|--retry-command "RETRY-COMMANDLINE"|--retry-exec SIMPLE-RETRY-COMMAND [...] ; [-r ...]] -c|--command "COMMANDLINE" [-c ...] | --exec SIMPLECOMMAND [...] ; | [--] SIMPLECOMMAND [...] ARG [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Execute COMMAND, with ARG ${argMarker:+either }appended to${argMarker:+ or replacing any $argMarker marker inside}
+it. If COMMAND fails, pass ARG to RETRY-COMMAND (as a fallback).
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --first-failure	Return the exit status of COMMAND; ignore the outcome of
+			RETRY-COMMAND.
+    --either-failure	Return the failure of either COMMAND or RETRY-COMMAND
+			(last exit status wins).
+			By default, 0 is returned if COMMAND succeeds, or else
+			the exit status of RETRY-COMMAND.
+    --command|-c CMD	Execute COMMAND, with ARG ${argMarker:+either }appended to
+			${argMarker:+or replacing any $argMarker marker inside} it.
+    --exec COMMAND [...] ;
+			Execute COMMAND; all following arguments are taken to be
+			arguments to the COMMAND until an argument consisting of
+			';' is encountered, with ARG ${argMarker:+either} appended to
+			${argMarker:+or replacing any $argMarker marker inside} it.
+    --retry-command|-r RETRY-COMMAND
+			If COMMAND fails, execute RETRY-COMMAND, with ARG ${argMarker:+either}
+			appended to${argMarker:+ or replacing any $argMarker marker inside} it.
+    --retry-exec COMMAND [...] ;
+			If COMMAND fails, all following arguments are taken to
+			be arguments to the RETRY-COMMAND until an argument
+			consisting of ';' is encountered, with ARG ${argMarker:+either}
+			appended to${argMarker:+ or replacing any $argMarker marker inside} it.
+    By default, just prints ARG.
+HELPTEXT
+}
+
+failureFrom=retry
+isNeedEval=
+typeset -a commands=()
+typeset -a retryCommands=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--first-failure)
+			shift; failureFrom=first;;
+	--either-failure)
+			shift; failureFrom=either;;
+	--retry-command|-r)
+			shift; retryCommands+=(${retryCommands:+;} "$1"); shift;;
+	--retry-exec)	shift
+			cmd=
+			printf -v escapedArgMarker %q "$argMarker"
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: --retry-exec command must be concluded with ;!'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			retryCommands+=(${retryCommands:+;} "$cmd")
+			;;
+	--exec)		shift
+			cmd=
+			printf -v escapedArgMarker %q "$argMarker"
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+=(${commands:+;} "$cmd"); isNeedEval=t
+			;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    echo 'ERROR: No ARG passed.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+arg="${!#}"; set -- "${@:1:$(($#-1))}"
+
+if [ $# -ne 0 ]; then
+    if [ "$isNeedEval" ]; then
+	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+	# undo the effects of eval.
+	printf -v quotedSimpleCommand '%q ' "$@"
+	printf -v escapedArgMarker %q "$argMarker"
+	commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    else
+	commands=("$@")
+    fi
+fi
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ;, or SIMPLECOMMAND.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+[ ${#retryCommands[@]} -gt 0 ] || retryCommands=('printf %s\\n')
+
+originalArg="$arg"
+typeset -a a=("$arg")
+[ "$isNeedEval" ] && printf -v arg '%q' "$arg"
+typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$arg}")
+[ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+
+if [ "$isNeedEval" ]; then
+    eval "${interpolatedCommands[@]}" '"${a[@]}"'
+else
+    "${interpolatedCommands[@]}" "${a[@]}"
+fi || {
+    status=$?
+
+    typeset -a o=("$originalArg")
+    printf -v originalArg '%q' "$originalArg"
+    typeset -a interpolatedCommands=("${retryCommands[@]//"$argMarker"/$originalArg}")
+    [ "${interpolatedCommands[*]}" = "${retryCommands[*]}" ] || o=()
+    eval "${interpolatedCommands[@]}" '"${o[@]}"'
+    retryStatus=$?
+
+    case "$failureFrom" in
+	first)	exit $status;;
+	retry)	exit $retryStatus;;
+	either)	exit $((retryStatus == 0 ? status : retryStatus));;
+	*)	printf >&2 'ASSERT: Invalid failureFrom: %s\n' "$failureFrom"; exit 3;;
+    esac
+}
