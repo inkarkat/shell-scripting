@@ -17,3 +17,9 @@ runStdout() {
   IFS="$origIFS"
   set "-$origFlags"
 }
+
+failNinetyNine()
+{
+    (exit 99)
+}
+export -f failNinetyNine
