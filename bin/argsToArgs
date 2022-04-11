@@ -8,7 +8,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...] [-s|--sink-command SINK-COMMAND]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
+    printf 'Usage: [ARGSTOARGS_IFS=TEXT] %q %s\n' "$(basename "$1")" '[-c|--command "COMMANDLINE" [-c ...] [-s|--sink-command SINK-COMMAND]] [-E|--command-takes-empty|-e|--empty-command "EMPTY-COMMANDLINE"] [--] [ARG ...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -22,8 +22,8 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Print all supplied command-line arguments as space / IFS-separated quoted
-arguments to standard output.
+Print all supplied command-line arguments as space / \$ARGSTOARGS_IFS-separated
+quoted arguments to standard output.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -88,7 +88,7 @@ argsToSink()
 }
 
 if [ $# -gt 0 ]; then
-    eval 'prettyPrintQuotedArgs -- "$@"' "${targetCommands:+|}" "${targetCommands[@]}" "${sinkCommand:+| argsToSink}"
+    eval 'PRETTYPRINTQUOTEDARGS_IFS="$ARGSTOARGS_IFS" prettyPrintQuotedArgs -- "$@"' "${targetCommands:+|}" "${targetCommands[@]}" "${sinkCommand:+| argsToSink}"
 elif [ "$isCommandTakesEmpty" ] && [ ${#targetCommands[@]} -gt 0 ]; then
     printf '' | eval "${targetCommands[@]}" "${sinkCommand:+| argsToSink}"
 elif [ "$emptyCommand" ]; then
