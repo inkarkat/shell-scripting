@@ -10,7 +10,7 @@ printShortUsage()
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: [ARGSORERROR_ARG_WHAT=%q] [ARGSORERROR_FAILURE_STATUS=%d] %q %s\n' "$ARGSORERROR_ARG_WHAT" "$ARGSORERROR_FAILURE_STATUS" \
-	"$(basename "$1")" "[-m|--message ERROR-MESSAGE] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} ; [--] ARGUMENT [...] [-?|-h|--help]"
+	"$(basename "$1")" "[-E|--fail-if-empty] [-m|--message ERROR-MESSAGE] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} ; [--] ARGUMENT [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -30,6 +30,8 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --fail-if-empty|-E	Also print ERROR-MESSAGE and fail if all supplied
+			ARGUMENT(s) are empty.
     --message|-m ERROR-MESSAGE
 			Print ERROR-MESSAGE if no ARGUMENTs are supplied; the
 			default is "ERROR: No arguments."
@@ -46,12 +48,15 @@ EXIT STATUS:
 HELPTEXT
 }
 
-errorMessage="ERROR: No ${ARGSORERROR_ARG_WHAT}."
+isFailIfEmpty=
+unset errorMessage
 typeset -a commands=()
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--fail-if-empty|-E)
+			shift; isFailIfEmpty=t;;
 	--message|-m)	shift; errorMessage="$1"; shift;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
 	--exec)		shift
@@ -75,12 +80,25 @@ do
 	*)		break;;
     esac
 done
+isEmptyArguments()
+{
+    for arg
+    do
+	[ -z "$arg" ] || return 1
+    done
+}
 if [ ${#commands[@]} -eq 0 ]; then
     echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND ... ;.'
     echo
     printUsage "$0"
     exit 2
 elif [ $# -eq 0 ]; then
+    : ${errorMessage="ERROR: No ${ARGSORERROR_ARG_WHAT}."}
+    [ -z "$errorMessage" ] || printf '%s\n' "$errorMessage"
+    exit $ARGSORERROR_FAILURE_STATUS
+elif [ "$isFailIfEmpty" ] && isEmptyArguments "$@"; then
+    argUnPlural=; [ $# -eq 1 ] && argUnPlural=s
+    : ${errorMessage="ERROR: Just $# empty ${ARGSORERROR_ARG_WHAT%${argUnPlural}}."}
     [ -z "$errorMessage" ] || printf '%s\n' "$errorMessage"
     exit $ARGSORERROR_FAILURE_STATUS
 fi >&2
