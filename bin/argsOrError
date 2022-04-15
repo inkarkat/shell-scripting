@@ -46,7 +46,7 @@ EXIT STATUS:
 HELPTEXT
 }
 
-errorMessage="ERROR: No ${ARGSORERROR_ARG_WHAT}."
+unset errorMessage
 typeset -a commands=()
 while [ $# -ne 0 ]
 do
@@ -81,6 +81,7 @@ if [ ${#commands[@]} -eq 0 ]; then
     printUsage "$0"
     exit 2
 elif [ $# -eq 0 ]; then
+    : ${errorMessage="ERROR: No ${ARGSORERROR_ARG_WHAT}."}
     [ -z "$errorMessage" ] || printf '%s\n' "$errorMessage"
     exit $ARGSORERROR_FAILURE_STATUS
 fi >&2
