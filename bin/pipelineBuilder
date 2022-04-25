@@ -1,12 +1,11 @@
 #!/bin/bash
 set -o pipefail
 
-
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-p|--paged] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-p|--paged] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -28,14 +27,17 @@ HELPDESCRIPTION
     cat <<HELPTEXT
     --paged|-p		Send the output of COMMANDs to the pager (${PAGER}) if
 			standard output goes to a terminal.
-    --reverse|-r	Put all following COMMANDs and SIMPLECOMMAND before
-			existing COMMANDs instead of after them. As you don't
-			need escaping on SIMPLECOMMAND, this can come handy when
-			one pipeline command would be particularly messy to
-			escape.
-    --command|-c CMD	Pipe the input into CMD if it's not piped somewhere
-			else. Multiple CMDs (and SIMPLECOMMAND) are combined as
-			pipelines, too.
+    --reverse|-r	Put all following COMMANDs and SIMPLECOMMANDs before
+			existing COMMANDs instead of after them. This can come
+			handy in an alias where the user can append arguments,
+			but these should not go to the last pipeline command,
+			but an earlier one.
+    --command|-c CMD	Pipe the input into CMD / add CMD as a pipeline step.
+			Multiple CMDs (and SIMPLECOMMAND) are combined as
+			pipelines.
+    --exec CMD [...] ;	Pipe the input into CMD / add CMD as a pipeline step.
+			All following arguments are taken to be arguments to the
+			CMD until an argument consisting of ';' is encountered.
 HELPTEXT
 }
 
@@ -63,6 +65,22 @@ do
 			isNeedEval=t
 			shift
 			;;
+	--exec)		shift
+			cmd=
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg}"
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			addCommand "$cmd"
+			isNeedEval=t
+			;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -79,7 +97,7 @@ if [ $# -ne 0 ]; then
     fi
 fi
 if [ ${#commands[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ;, or SIMPLECOMMAND.'
     echo
     printUsage "$0"
     exit 2
