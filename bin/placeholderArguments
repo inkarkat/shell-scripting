@@ -25,9 +25,9 @@ printLongUsage()
     cat <<HELPDESCRIPTION
 Execute COMMAND(s) while replacing all occurrences of $argMarker in its
 arguments with ARGUMENT(s).
-COMMAND (and its ARGUMENT(s)) can be specified in various ways: As one quoted
-argument with -c|--command, arguments after --exec until a ';', separated by
-special arguments --, or (especially useful in scripts when you know the
+COMMAND (and its COMMAND-ARGUMENT(s)) can be specified in various ways: As one
+quoted argument with -c|--command, arguments after --exec until a ';', separated
+by special arguments --, or (especially useful in scripts when you know the
 \${#ARGS[@]} but cannot influence the contents) by number of arguments.
 HELPDESCRIPTION
     echo
