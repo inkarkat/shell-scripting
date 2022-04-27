@@ -1,0 +1,111 @@
+#!/bin/bash
+
+printShortUsage()
+{
+    printf 'Usage: %q %s\n' "$(basename "$1")" "-c|--command \"COMMANDLINE [...]\" [-c ...] [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "--exec SIMPLECOMMAND [COMMAND-ARG ...] ; [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "-- SIMPLECOMMAND [COMMAND-ARG ...] -- [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "-n|--command-arguments N SIMPLECOMMAND [COMMAND-ARG ...] [ARGUMENT ...]"
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Execute COMMAND(s) while dropping all additional ARGUMENT(s).
+COMMAND (and its COMMAND-ARGUMENT(s)) can be specified in various ways: As one
+quoted argument with -c|--command, arguments after --exec until a ';', separated
+by special arguments --, or (especially useful in scripts when you know the
+\${#ARGS[@]} but cannot influence the contents) by number of arguments.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+Alternative: The --command COMMANDLINE form is equivalent to
+sh -c "COMMANDLINE".
+HELPTEXT
+    echo
+    printf 'Example: find . -execdir %q %s +\n' "$(basename "$1")" '-- pwd -- {} +'
+}
+
+isNeedEval=
+typeset -a commands=()
+typeset -a simpleCommand=()
+commandArgumentNum=
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--exec)		shift
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    simpleCommand+=("$1")
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: --exec command must be concluded with ;'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			;;
+	--command-arguments|-n)
+			shift; commandArgumentNum="$1"; shift;;
+	--)		break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+
+case "$1" in
+    --) shift
+	while [ $# -gt 0 -a "$1" != '--' ]
+	do
+	    simpleCommand+=("$1")
+	    shift
+	done
+	if [ $# -eq 0 ]; then
+	    echo 'ERROR: -- SIMPLECOMMAND [ARGUMENT ...] must be concluded with --'; echo; printUsage "$0"
+	    exit 2
+	fi >&2
+	shift
+	;;
+    *)	if [ -n "$commandArgumentNum" ]; then
+	    for (( i = 0; i < commandArgumentNum; i++ ))
+	    do
+		simpleCommand+=("$1")
+		shift
+	    done
+	fi
+	;;
+esac
+if [ ${#simpleCommand[@]} -gt 0 ]; then
+    if [ "$isNeedEval" ]; then
+	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+	# undo the effects of eval.
+	printf -v quotedSimpleCommand '%q ' "${simpleCommand[@]}"
+	commands+=(${commands:+;} "${quotedSimpleCommand% }")
+    else
+	commands=("${simpleCommand[@]}")
+    fi
+fi
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+if [ "$isNeedEval" ]; then
+    eval "${commands[@]}"
+else
+    "${commands[@]}"
+fi
