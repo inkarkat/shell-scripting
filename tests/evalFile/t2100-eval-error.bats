@@ -9,7 +9,7 @@ This ${IS_NOT_DEFINED:-defaulted} variable is still fine.
 But ${SHOULD_BE_DEFINED:?} breaks the evaluation.
 ${EMPTY?} would, too.
 EOF
-    [ $status -eq 1 ]
+    [ $status -ne 0 ]
     [[ "$output" =~ 'SHOULD_BE_DEFINED: parameter null or not set'$ ]]
 }
 
@@ -19,7 +19,7 @@ This ${IS_NOT_DEFINED:-defaulted} variable is still fine.
 But ${shouldBeClosed breaks the evaluation.
 ${EMPTY?} would, too.
 EOF
-    [ $status -eq 1 ]
+    [ $status -ne 0 ]
     [[ "$output" =~ 'unexpected EOF while looking for matching `"'\' ]]
     [[ "$output" =~ 'syntax error: unexpected end of file'$ ]]
 }

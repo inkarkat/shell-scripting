@@ -13,7 +13,7 @@ export EMPTY=''
 
 @test "eval error on shell syntax error" {
     run shelltemplate "${BATS_TEST_DIRNAME}/syntaxError.txt"
-    [ $status -eq 1 ]
+    [ $status -ne 0 ]
     [[ "$output" =~ 'unexpected EOF while looking for matching `"'\' ]]
     [[ "$output" =~ 'syntax error: unexpected end of file'$ ]]
 }
@@ -28,6 +28,6 @@ export EMPTY=''
 @test "eval error on shell syntax error prevents override of existing target" {
     shelltemplate --target "$TARGET_FILE" "${BATS_TEST_DIRNAME}/input.txt"
     run shelltemplate --target "$TARGET_FILE" "${BATS_TEST_DIRNAME}/syntaxError.txt"
-    [ $status -eq 1 ]
+    [ $status -ne 0 ]
     [ "$(cat "$TARGET_FILE")" = "$expected" ]
 }
