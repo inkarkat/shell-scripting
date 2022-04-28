@@ -107,7 +107,7 @@ if [ ${#duplicateIds[@]} -gt 0 ]; then
 elif printf '%s\n' "${ids[@]}" | grep --quiet -e '^[[:space:]]*$'; then
     echo >&2 'ERROR: Empty ID(s).'
     exit 125
-elif [ ${#titles[@]} -ne ${#ids[@]} ]; then
+elif contains '' "${titles[@]}"; then
     echo >&2 'ERROR: Empty TITLE(s).'
     exit 125
 fi
