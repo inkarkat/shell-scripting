@@ -124,7 +124,8 @@ case "$buffering" in
 	    commandLines=("${commandLines[@]/%/; \} >&3 ) |}")
 	    eval "${commandLines[@]}" "{ $lastCommandLine; } >&3" 3>&1
 	else
-	    :
+	    echo >&2 'ERROR: Sequential execution is only possible with buffering; pass -i|--input-buffered or -o|--output-buffered.'
+	    exit 2
 	fi
 	;;
     *)
