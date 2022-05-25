@@ -130,7 +130,10 @@ case "$buffering" in
 	if [ "$isParallel" ]; then
 	    < "$TMPFILE" parallelTeePipeline
 	else
-	    :
+	    for commandLine in "${commandLines[@]}"
+	    do
+		< "$TMPFILE" eval "$commandLine" || exit $?
+	    done
 	fi
 	;;
     output)
