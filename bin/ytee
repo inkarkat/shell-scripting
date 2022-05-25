@@ -111,6 +111,15 @@ if [ ${#commandLines[@]} -eq 0 ]; then
     exit 2
 fi >&2
 
+parallelTeePipeline()
+{
+    lastCommandLine="${commandLines[$((${#commandLines[@]}-1))]}"
+    commandLines=("${commandLines[@]:0:$((${#commandLines[@]}-1))}")
+    commandLines=("${commandLines[@]/#/tee \>({ }")
+    commandLines=("${commandLines[@]/%/; \} >&3 ) |}")
+    eval "${commandLines[@]}" "{ $lastCommandLine; } >&3" 3>&1
+}
+
 case "$buffering" in
     input)
 	;;
@@ -118,11 +127,7 @@ case "$buffering" in
 	;;
     '')
 	if [ "$isParallel" ]; then
-	    lastCommandLine="${commandLines[$((${#commandLines[@]}-1))]}"
-	    commandLines=("${commandLines[@]:0:$((${#commandLines[@]}-1))}")
-	    commandLines=("${commandLines[@]/#/tee \>({ }")
-	    commandLines=("${commandLines[@]/%/; \} >&3 ) |}")
-	    eval "${commandLines[@]}" "{ $lastCommandLine; } >&3" 3>&1
+	    parallelTeePipeline
 	else
 	    echo >&2 'ERROR: Sequential execution is only possible with buffering; pass -i|--input-buffered or -o|--output-buffered.'
 	    exit 2
