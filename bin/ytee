@@ -137,6 +137,11 @@ case "$buffering" in
 	fi
 	;;
     output)
+	if [ ! "$isParallel" ]; then
+	    echo >&2 'ERROR: Sequential execution is only possible with input buffering.'
+	    exit 2
+	fi
+
 	TMPDIR="$(mktemp --directory --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || { dirspec="${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM"; mkdir -p -- "$dirspec" && printf %s "$dirspec"; })" || exit 3
 	[ "${DEBUG:-}" ] || trap 'rm -rf -- "$TMPDIR" 2>/dev/null' EXIT
 
@@ -156,12 +161,11 @@ case "$buffering" in
 	cat -- "${captureFilespecs[@]}"
 	;;
     '')
-	if [ "$isParallel" ]; then
-	    parallelTeePipeline
-	else
-	    echo >&2 'ERROR: Sequential execution is only possible with buffering; pass -i|--input-buffered or -o|--output-buffered.'
+	if [ ! "$isParallel" ]; then
+	    echo >&2 'ERROR: Sequential execution is only possible with input buffering; pass -i|--input-buffered.'
 	    exit 2
 	fi
+	parallelTeePipeline
 	;;
     *)
 	printf >&2 'ASSERT: Invalid buffering: %s\n' "$buffering"; exit 3;;
