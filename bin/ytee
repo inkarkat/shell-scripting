@@ -137,6 +137,23 @@ case "$buffering" in
 	fi
 	;;
     output)
+	TMPDIR="$(mktemp --directory --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || { dirspec="${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM"; mkdir -p -- "$dirspec" && printf %s "$dirspec"; })" || exit 3
+	[ "${DEBUG:-}" ] || trap 'rm -rf -- "$TMPDIR" 2>/dev/null' EXIT
+
+	typeset -a capturingCommandLines=()
+	typeset -a captureFilespecs=()
+	for ((i = 1; i <= ${#commandLines[@]}; i++))
+	do
+	    captureFilespecs+=("${TMPDIR}/$i")
+
+	    commandLine="{ ${commandLines[$((i - 1))]}; } > \"\${TMPDIR}/$i\""
+	    if [ $i -lt ${#commandLines[@]} ]; then
+		commandLine="tee >(${commandLine}) |"
+	    fi
+	    capturingCommandLines+=("$commandLine")
+	done
+	eval "${capturingCommandLines[@]}" || exit $?
+	cat -- "${captureFilespecs[@]}"
 	;;
     '')
 	if [ "$isParallel" ]; then
