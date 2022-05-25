@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-p|--parallel|-s|--sequential] [-i|--input-buffered|-o|--output-buffered] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-i|--input-buffered [-s|--sequential]|-o|--output-buffered] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -25,15 +25,15 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
-    --parallel|-p	Feed the input into all COMMANDs in parallel; the output
-			order is undefined (but output will appear immediately).
-			This is the default.
-    --sequential|-s	Execute only one COMMAND at a time, in the order of
-			COMMANDs given. A failing command will abort the
-			sequence. Like --output-buffered, this ensures
-			deterministic ordering, but in a slower way.
+Input is fed into all COMMANDs in parallel; without added buffering, the output
+order is undefined (but output will appear immediately).
+
     --input-buffered|-i	Input will be read completely, and only then fed to
 			COMMANDS.
+    --sequential|-s	When input buffering, execute only one COMMAND at a
+			time, in the order of COMMANDs given. A failing command
+			will abort the sequence. Like --output-buffered, this
+			ensures deterministic ordering, but in a slower way.
     --output-buffered|-o
 			Each COMMAND's output will be stored separately, and
 			only combined at the end (in the order of COMMANDs
