@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 printShortUsage()
 {
@@ -122,6 +123,15 @@ parallelTeePipeline()
 
 case "$buffering" in
     input)
+	TMPFILE="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+	[ "${DEBUG:-}" ] || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
+	cat > "$TMPFILE" || exit $?
+
+	if [ "$isParallel" ]; then
+	    < "$TMPFILE" parallelTeePipeline
+	else
+	    :
+	fi
 	;;
     output)
 	;;
