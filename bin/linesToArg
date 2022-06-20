@@ -23,7 +23,8 @@ printLongUsage()
     cat <<HELPDESCRIPTION
 Read lines from standard input and pass each individually (${argMarker:+either }appended${argMarker:+ or
 replacing any $argMarker marker}) to COMMAND. If COMMAND transforms the argument
-to output line(s), this works like map. Similar to xargs -d '\\n' [-I {}] -n 1 COMMAND.
+to output line(s), this works like map.
+Similar to xargs --no-run-if-empty -d '\\n' [-I {}] -n 1 COMMAND.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"

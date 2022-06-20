@@ -23,8 +23,8 @@ printLongUsage()
     cat <<HELPDESCRIPTION
 Read lines from standard input and pass them as individual arguments
 (${argMarker:+either }appended${argMarker:+ or replacing any $argMarker marker}) to COMMAND.
-Similar to xargs -d '\\n' COMMAND (but -I{} limits xargs to one argument per
-invocation there).
+Similar to xargs --no-run-if-empty -d '\\n' COMMAND (but -I{} limits xargs to
+one argument per invocation there).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
