@@ -1,0 +1,172 @@
+#!/bin/bash
+set -o pipefail
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-i|--input-buffered [-s|--sequential]|-o|--output-buffered] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Duplicate input to all COMMANDs, and collect their output into one stream again.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+Input is fed into all COMMANDs in parallel; without added buffering, the output
+order is undefined (but output will appear immediately).
+
+    --input-buffered|-i	Input will be read completely, and only then fed to
+			COMMANDS.
+    --sequential|-s	When input buffering, execute only one COMMAND at a
+			time, in the order of COMMANDs given. A failing command
+			will abort the sequence. Like --output-buffered, this
+			ensures deterministic ordering, but in a slower way.
+    --output-buffered|-o
+			Each COMMAND's output will be stored separately, and
+			only combined at the end (in the order of COMMANDs
+			given). Like --sequential, this ensures deterministic
+			ordering, but COMANDs can still run in parallel.
+    --reverse|-r	Put all following COMMANDs and SIMPLECOMMANDs before
+			existing COMMANDs instead of after them. This can come
+			handy in an alias where the user can append arguments,
+			but these should not go to the last pipeline command,
+			but an earlier one.
+    --command|-c CMD	Pipe the input into CMD.
+			Multiple CMDs (and SIMPLECOMMAND) are fed the same
+			duplicated input.
+    --exec CMD [...] ;	Pipe the input into CMD. All following arguments are
+			taken to be arguments to the CMD until an argument
+			consisting of ';' is encountered.
+HELPTEXT
+}
+
+addCommandLine()
+{
+    if [ "$isReverse" ]; then
+	commandLines=("$1" "${commandLines[@]}")
+    else
+	commandLines+=("$1")
+    fi
+}
+
+isParallel=t
+buffering=
+isReverse=
+typeset -a commandLines=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--parallel|-p)	shift; isParallel=t;;
+	--sequential|-s)
+			shift; isParallel=;;
+	--input-buffered|-i)
+			shift; buffering=input;;
+	--output-buffered|-o)
+			shift; buffering=output;;
+	--reverse|-r)	shift; isReverse=t;;
+	--command|-c)	shift; addCommandLine "$1"; shift;;
+	--exec)		shift
+			cmd=
+			while [ $# -gt 0 -a "$1" != ';' ]
+			do
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg}"
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			addCommandLine "$cmd"
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -ne 0 ]; then
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    printf -v quotedSimpleCommand '%q ' "$@"
+    addCommandLine "${quotedSimpleCommand% }"
+fi
+if [ ${#commandLines[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ; , or SIMPLECOMMAND.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+parallelTeePipeline()
+{
+    lastCommandLine="${commandLines[$((${#commandLines[@]}-1))]}"
+    commandLines=("${commandLines[@]:0:$((${#commandLines[@]}-1))}")
+    commandLines=("${commandLines[@]/#/tee \>({ }")
+    commandLines=("${commandLines[@]/%/; \} >&3 ) |}")
+    eval "${commandLines[@]}" "{ $lastCommandLine; } >&3" 3>&1
+}
+
+case "$buffering" in
+    input)
+	TMPFILE="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+	[ "${DEBUG:-}" ] || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
+	cat > "$TMPFILE" || exit $?
+
+	if [ "$isParallel" ]; then
+	    < "$TMPFILE" parallelTeePipeline
+	else
+	    for commandLine in "${commandLines[@]}"
+	    do
+		< "$TMPFILE" eval "$commandLine" || exit $?
+	    done
+	fi
+	;;
+    output)
+	if [ ! "$isParallel" ]; then
+	    echo >&2 'ERROR: Sequential execution is only possible with input buffering.'
+	    exit 2
+	fi
+
+	TMPDIR="$(mktemp --directory --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || { dirspec="${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM"; mkdir -p -- "$dirspec" && printf %s "$dirspec"; })" || exit 3
+	[ "${DEBUG:-}" ] || trap 'rm -rf -- "$TMPDIR" 2>/dev/null' EXIT
+
+	typeset -a capturingCommandLines=()
+	typeset -a captureFilespecs=()
+	for ((i = 1; i <= ${#commandLines[@]}; i++))
+	do
+	    captureFilespecs+=("${TMPDIR}/$i")
+
+	    commandLine="{ ${commandLines[$((i - 1))]}; } > \"\${TMPDIR}/$i\""
+	    if [ $i -lt ${#commandLines[@]} ]; then
+		commandLine="tee >(${commandLine}) |"
+	    fi
+	    capturingCommandLines+=("$commandLine")
+	done
+	eval "${capturingCommandLines[@]}" || exit $?
+	cat -- "${captureFilespecs[@]}"
+	;;
+    '')
+	if [ ! "$isParallel" ]; then
+	    echo >&2 'ERROR: Sequential execution is only possible with input buffering; pass -i|--input-buffered.'
+	    exit 2
+	fi
+	parallelTeePipeline
+	;;
+    *)
+	printf >&2 'ASSERT: Invalid buffering: %s\n' "$buffering"; exit 3;;
+esac
