@@ -1,0 +1,41 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Do replacements of & and \\0 with SUBMATCH0, \\1 with SUBMATCH1, and so on; like
+the Ex's :substitute command and AWK's gsub(). A literal \\ has to be escaped as
+\\\\.
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" 'TEXT [SUBMATCH0 [SUBMATCH1 [...]]] [-?|-h|--help]'
+}
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+esac
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+printf -v quotedText %q "$1"; shift
+typeset -a quotedSubmatches=()
+for submatch
+do
+    printf -v quotedSubmatch %q "$submatch"
+    quotedSubmatches+=("$quotedSubmatch")
+done
+
+readonly AMPERSAND='&'
+quotedText="${quotedText//\\\\\\\\/$'\n'}"
+#printf >&2 '#### %s\n' "$quotedText"
+quotedText="${quotedText//\\\\\\&/\$\{AMPERSAND\}}"
+quotedText="${quotedText//\\&/${quotedSubmatches[0]}}"
+for ((i = 0; i < ${#quotedSubmatches[@]}; i++))
+do
+    #printf >&2 '**** %s->%s\n' "\\$i" "${quotedSubmatches[$i]}"
+    quotedText="${quotedText//\\\\$i/${quotedSubmatches[$i]}}"
+done
+
+#printf >&2 '#### %s\n' "$quotedText"
+eval result="${quotedText//$'\n'/\\\\}"
+printf '%s\n' "$result"
