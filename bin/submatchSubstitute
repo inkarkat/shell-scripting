@@ -25,9 +25,11 @@ do
     quotedSubmatches+=("$quotedSubmatch")
 done
 
+readonly AMPERSAND='&'
 quotedText="${quotedText//\\\\\\\\/$'\n'}"
 #printf >&2 '#### %s\n' "$quotedText"
-#quotedText="${quotedText//&/\$\{quotedSubmatches\[0\]\}}"
+quotedText="${quotedText//\\\\\\&/\$\{AMPERSAND\}}"
+quotedText="${quotedText//\\&/${quotedSubmatches[0]}}"
 for ((i = 0; i < ${#quotedSubmatches[@]}; i++))
 do
     #printf >&2 '**** %s->%s\n' "\\$i" "${quotedSubmatches[$i]}"
