@@ -1,13 +1,16 @@
 #!/bin/bash
 
+: ${LINESTOARG_LINE_WHAT=line}
 : ${LINESTOARG_ARG_MARKER='{}'}
 argMarker="$LINESTOARG_ARG_MARKER"; unset LINESTOARG_ARG_MARKER
+
+hasProgressNotification=; type -t progressNotification >/dev/null && hasProgressNotification=t
 
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--emulate-prompt]] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: %q%s %s\n' "$(basename "$1")" "${hasProgressNotification:+ [--progress SINK]}" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--emulate-prompt]] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -34,7 +37,9 @@ HELPDESCRIPTION
 			there is no input. By default, nothing will be executed.
     --command|-c CMD	The command line to be executed. When this is a simple
 			command, it can also be passed as such. Read arguments
-			are appended${argMarker:+ or replace the string $argMarker}.
+			are appended${argMarker:+ or replace the string $argMarker}.${hasProgressNotification:+
+    --progress SINK	Report the current line through one of the SINKs of the
+			progressNotification command.}
     --with-header	Print a header (containing the current line) before each
 			execution.
     --with-prompt	Emulate a full prompt (as if invoking COMMAND) before
@@ -65,6 +70,7 @@ HELPTEXT
     printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'ping -c1 -q --'
 }
 
+progressSink=
 with=
 isRunIfEmpty=
 isNeedEval=
@@ -79,6 +85,7 @@ do
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--progress)	shift; progressSink="$1"; shift;;
 	--with-header)	shift; with=header;;
 	--with-prompt)	shift; with=prompt; runWithCommand=runWithPrompt;;
 
@@ -118,6 +125,18 @@ elif [ ${#runWithPromptArgs[@]} -gt 0 -a "$with" = header ]; then
 fi >&2
 [ ${#runWithPromptArgs[@]} -gt 0 ] && with=prompt
 
+if [ "$hasProgressNotification" ] && [ -n "$progressSink" ]; then
+    exec 3> >(progressNotification --to "$progressSink" ${LINESTOARG_LINE_WHAT:+--prepend-count "${LINESTOARG_LINE_WHAT}"} 2>/dev/null)
+
+    reportProgress()
+    {
+	trap 'reportProgress() { :; }; trap PIPE' PIPE
+	printf '%s\n' "$*" >&3 2>/dev/null  # Silence "printf: write error: Broken pipe"
+    }
+else
+    reportProgress() { :; }
+fi
+
 
 isFirst=t
 case "$with" in
@@ -139,6 +158,7 @@ case "$with" in
 	    typeset -a a=("$line")   # Quoter for isNeedEval=t is off, so need to use quoted line here.
 	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
 
+	    reportProgress "$line"
 	    printf "$quoter " "${interpolatedCommands[@]}" "${a[@]}"
 	    printf '\n'
 	    isFirst=
@@ -161,6 +181,7 @@ case "$with" in
 	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
 	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
 
+	    reportProgress "$line"
 	    if [ "$isNeedEval" ]; then
 		eval "${interpolatedCommands[@]}" '"${a[@]}"'
 	    else
