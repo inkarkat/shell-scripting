@@ -1,0 +1,113 @@
+#!/bin/bash
+
+baseDir="${TMPDIR:-/tmp}"
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--basedir DIR|--base-type config|data|runtime|cache|temp] [-i|--id ID] [-c|--command "COMMANDLINE" [-c ...] | [--] SIMPLECOMMAND] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Capture input in a temporary file, appended to any previous input captures that
+have happened under the same ID, and print the entire input / pipe all of that
+to COMMAND.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --basedir DIR	Set the base directory. Defaults to
+			${baseDir}
+    --base-type config|data|runtime|cache|temp
+			Set the base directory based on the passed
+			characterization. The default is "temp".
+    --id|-i ID		Identifier for the running COMMAND. If omitted, will use
+			COMMAND itself. Mandatory when no COMMAND is given.
+    --command|-c CMD	The command line to be executed. When this is a simple
+			command, it can also be passed as such.
+HELPTEXT
+}
+id=
+isNeedEval=
+typeset -a commands=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--basedir)	shift; baseDir="$1"; shift;;
+	--base-type)	shift
+			case "$1" in
+			    config)	baseDir="${XDG_CONFIG_HOME:-$HOME/.config}";;
+			    data)	baseDir="${XDG_DATA_HOME:-$HOME/.local/share}";;
+			    runtime)	baseDir="${XDG_RUNTIME_DIR:-/run/user/$UID}";;
+			    cache)	baseDir="${XDG_CACHE_HOME:-$HOME/.cache}";;
+			    temp)	baseDir="${TMPDIR:-/tmp}";;
+			    *)		printf >&2 'ERROR: Invalid base-type "%s".\n' "$1"
+					echo >&2
+					printUsage "$0" >&2
+					exit 2
+					;;
+			esac
+			shift
+			;;
+	--id|-i)	shift; id="$1"; shift;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -ne 0 ]; then
+    if [ "$isNeedEval" ]; then
+	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+	# undo the effects of eval.
+	printf -v quotedSimpleCommand '%q ' "$@"
+	commands+=(${commands:+;} "${quotedSimpleCommand% }")
+    else
+	commands=("$@")
+    fi
+fi
+
+if [ -z "$id" ]; then
+    if [ ${#commands[@]} -eq 0 ]; then
+	echo 'ERROR: Need to specify -i|--id ID when no COMMAND(s) are passed.'
+	echo
+	printUsage "$0"
+	exit 2
+    fi >&2
+    id="$(stringAsFilename "${commands[*]}")" || exit $?
+fi
+
+storeDir="${baseDir}/withConcatenatedInput"
+[ -d "$storeDir" ] || mkdir -p -- "$storeDir" || { printf >&2 'ERROR: Could not initialize input store at %s!\n' "$storeDir"; exit 3; }
+storedInputFilespec="${storeDir:?}/${id:?}"
+
+recallAndAppendInput()
+{
+    [ ! -e "$storedInputFilespec" ] || cat -- "$storedInputFilespec"
+    tee --append -- "$storedInputFilespec"
+}
+
+execute()
+{
+    if [ "$isNeedEval" ]; then
+	eval "${commands[@]}"
+    else
+	"${commands[@]}"
+    fi
+}
+
+hasCommands=t; [ ${#commands[@]} -eq 0 ] && hasCommands=
+eval 'recallAndAppendInput' "${hasCommands:+| execute}"
