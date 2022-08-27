@@ -6,7 +6,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--basedir DIR|--base-type config|data|runtime|cache|temp] [-i|--id ID] [-c|--command "COMMANDLINE" [-c ...] | [--] SIMPLECOMMAND] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--basedir DIR|--base-type config|data|runtime|cache|temp] [-i|--id ID] [--truncate-on-failure|--truncate-on-success|-X|--truncate-on EXIT_STATUS] [-c|--command "COMMANDLINE" [-c ...] | [--] SIMPLECOMMAND] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -35,11 +35,20 @@ HELPDESCRIPTION
 			characterization. The default is "temp".
     --id|-i ID		Identifier for the running COMMAND. If omitted, will use
 			COMMAND itself. Mandatory when no COMMAND is given.
+    --truncate-on-failure
+			Clear any previous input when COMMAND fails.
+    --truncate-on-success
+			Clear any previous input when COMMAND succeeds.
+    --truncate-on|-X EXIT_STATUS
+			Clear any previous input when COMMAND exits with
+			EXIT_STATUS.
     --command|-c CMD	The command line to be executed. When this is a simple
 			command, it can also be passed as such.
 HELPTEXT
 }
 id=
+truncateStatus=
+truncateComparison=-eq
 isNeedEval=
 typeset -a commands=()
 while [ $# -ne 0 ]
@@ -63,6 +72,12 @@ do
 			shift
 			;;
 	--id|-i)	shift; id="$1"; shift;;
+	--truncate-on-failure)
+			shift; truncateComparison=-ne; truncateStatus=0;;
+	--truncate-on-success)
+			shift; truncateComparison=-eq; truncateStatus=0;;
+	--truncate-on|-X)
+			shift; truncateStatus="$1"; shift;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -102,11 +117,17 @@ recallAndAppendInput()
 
 execute()
 {
+    local status
     if [ "$isNeedEval" ]; then
 	eval "${commands[@]}"
     else
 	"${commands[@]}"
-    fi
+    fi; status=$?
+
+    [ -n "$truncateStatus" ] || return
+    [ "$status" $truncateComparison $truncateStatus ] && rm --force -- "$storedInputFilespec"
+
+    return $status
 }
 
 hasCommands=t; [ ${#commands[@]} -eq 0 ] && hasCommands=
