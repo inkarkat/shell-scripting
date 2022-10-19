@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-p|--paged] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-p|--paginate] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -25,7 +25,7 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
-    --paged|-p		Send the output of COMMANDs to the pager (${PAGER}) if
+    --paginate|-p	Send the output of COMMANDs to the pager (${PAGER}) if
 			standard output goes to a terminal.
     --reverse|-r	Put all following COMMANDs and SIMPLECOMMANDs before
 			existing COMMANDs instead of after them. This can come
@@ -58,7 +58,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--paged|-p)	shift; pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=();;
+	--paginate|-p)	shift; pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=();;
 	--reverse|-r)	shift; isReverse=t;;
 	--command|-c)	shift
 			addCommand "$1"
