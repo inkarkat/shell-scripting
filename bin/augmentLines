@@ -1,0 +1,224 @@
+#!/bin/bash
+
+: ${AUGMENTLINES_SEPARATOR=$'\t'}
+: ${AUGMENTLINES_ARG_MARKER='{}'}
+argMarker="$AUGMENTLINES_ARG_MARKER"; unset AUGMENTLINES_ARG_MARKER
+
+hasProgressNotification=; type -t progressNotification >/dev/null && hasProgressNotification=t
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-p|--prepend] [-1|--stdout|-2|--stderr] [-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--emulate-prompt]] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Read lines from standard input and pass each individually (${argMarker:+either }appended${argMarker:+ or
+replacing any $argMarker marker}) to COMMAND, capture its output, and append it
+to the original line.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --prepend|-p	Put the captured output in front of the original line
+			instead of appending it.
+    --stdout|-1		Only capture standard output.
+    --stderr|-2		Only capture error output.
+    --run-if-empty|-r	Also run COMMANDs (without any supplied arguments) if
+			there is no input. By default, nothing will be executed.
+    --command|-c CMD	The command line to be executed. When this is a simple
+			command, it can also be passed as such. Read arguments
+			are appended${argMarker:+ or replace the string $argMarker}.${hasProgressNotification:+
+    --progress SINK	Report the current line through one of the SINKs of the
+			progressNotification command.}
+    --with-header	Print a header (containing the current line) before each
+			execution.
+    --with-prompt	Emulate a full prompt (as if invoking COMMAND) before
+			each execution.
+    --emulate-prompt	    Customizations of the prompt emulation around
+    --initial-status NUM    COMMAND; cp. runWithPrompt
+    --trailing-prompt
+    --no-trailing-prompt
+    --no-output-no-prompt
+    --no-output-no-error
+    --no-success-no-count   Stop on condition / summarize at end; cp. runWith
+    --no-count-on N	    Cannot be combined with --with-header.
+    --exit-on-success
+    --exit-on-failure
+    --exit-on NUM
+    --worst-status
+    --comment COMMENT
+    --summarize-failed ERROR-TEXT
+    --summarize-failed-separator SEP
+    --between-command BETWEEN-COMMAND
+		    Execute BETWEEN-COMMAND in between each COMMAND execution.
+
+EXIT STATUS:
+Overall exit status is the highest status of all. If you specify any
+runWith[Prompt] argument, --worst-status needs to be explicitly passed.
+
+Example:
+HELPTEXT
+    printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'time -f %E curl -s -o /dev/null'
+}
+
+isAppend=t
+redirPrefix='2>&1'
+redirSuffix=
+progressSink=
+with=
+isRunIfEmpty=
+isNeedEval=
+typeset -a commands=()
+betweenCommand=
+runWithCommand=runWith
+typeset -a runWithPromptArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--prepend|-p)	shift; isAppend=;;
+	--stdout|-1)	shift; redirPrefix='';;
+	--stderr|-2)	shift; redirPrefix='3>&1 1>&2 2>&3 3>&-'; redirSuffix='3>&1 1>&2 2>&3 3>&-';;
+	--run-if-empty|-r)
+			shift; isRunIfEmpty=t;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--progress)	shift; progressSink="$1"; shift;;
+	--with-header)	shift; with=header;;
+	--with-prompt)	shift; with=prompt; runWithCommand=runWithPrompt;;
+
+	--trailing-prompt|--no-trailing-prompt|--no-output-no-prompt|--no-output-no-error|--no-success-no-count|--exit-on-success|--exit-on-failure|--emulate-prompt|--worst-status)
+			runWithPromptArgs+=("$1"); shift;;
+	--initial-status|--no-count-on|--exit-on|--comment|--summarize-failed|--summarize-failed-separator)
+			runWithPromptArgs+=("$1" "$2"); shift; shift;;
+
+	--between-command)
+			shift; betweenCommand="$1"; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -ne 0 ]; then
+    if [ "$isNeedEval" ]; then
+	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+	# undo the effects of eval.
+	printf -v quotedSimpleCommand '%q ' "$@"
+	printf -v escapedArgMarker %q "$argMarker"
+	commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    else
+	commands=("$@")
+    fi
+fi
+if [ ${#commands[@]} -eq 0 ]; then
+    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo
+    printUsage "$0"
+    exit 2
+elif [ ${#runWithPromptArgs[@]} -gt 0 -a "$with" = header ]; then
+    echo 'ERROR: Cannot combine runWith[Prompt] arguments with --with-header.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+[ ${#runWithPromptArgs[@]} -gt 0 ] && with=prompt
+
+if [ "$hasProgressNotification" ] && [ -n "$progressSink" ]; then
+    exec 3> >(progressNotification --to "$progressSink" ${LINESTOARG_LINE_WHAT:+--prepend-count "${LINESTOARG_LINE_WHAT}"} 2>/dev/null)
+
+    reportProgress()
+    {
+	trap 'reportProgress() { :; }; trap PIPE' PIPE
+	printf '%s\n' "$*" >&3 2>/dev/null  # Silence "printf: write error: Broken pipe"
+    }
+else
+    reportProgress() { :; }
+fi
+
+execute()
+{
+    if [ "$isNeedEval" ]; then
+	eval "${interpolatedCommands[@]}" '"${a[@]}"'
+    else
+	"${interpolatedCommands[@]}" "${a[@]}"
+    fi
+}
+
+isFirst=t
+case "$with" in
+    prompt)
+	[ ${#runWithPromptArgs[@]} -eq 0 ] && runWithPromptArgs=(--worst-status)
+	quoter='%q'; [ "$isNeedEval" ] && quoter='%s'
+	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
+	do
+	    originalLine="$line"
+	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
+		if [ "${betweenCommand:$((${#betweenCommand} - 1))}" = ';' ]; then
+		    printf '%s ' "$betweenCommand"  # Prepend the BETWEEN-COMMAND to the next line's execution (so there's no separate prompt) if it ends with a semicolon. Its exit status is then ignored.
+		else
+		    printf '%s\n' "$betweenCommand" # Use a separate prompt (and with it consider its exit status).
+		fi
+	    fi
+
+	    reportProgress "$line"
+
+	    [ "$isNeedEval" ] && printf -v line '%q' "$line"
+	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
+	    typeset -a a=("$line")   # Quoter for isNeedEval=t is off, so need to use quoted line here.
+	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+
+	    printf -v quotedCommand "$quoter " "${interpolatedCommands[@]}" "${a[@]}"
+
+	    if [ "$isAppend" ]; then
+		printf 'printf %%s%%s%%s\\\\n %q %q $(%s %s) %s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "${quotedCommand% }" "$redirPrefix" "$redirSuffix"
+	    else
+		printf 'printf %%s%%s%%s\\\\n $(%s %s) %q %q %s\n' "${quotedCommand% }" "$redirPrefix" "$AUGMENTLINES_SEPARATOR" "$originalLine" "$redirSuffix"
+	    fi
+	    isFirst=
+	done | ${runWithCommand:?} "${runWithPromptArgs[@]}"
+	;;
+    *)
+	status=0
+	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
+	do
+	    originalLine="$line"
+	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
+		eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+	    fi
+
+	    if [ "$with" = 'header' ]; then
+		header ${isFirst:+--first} "$line"
+	    fi
+
+	    reportProgress "$line"
+
+	    typeset -a a=("$line")   # No quoting, as array provides separation.
+	    [ "$isNeedEval" ] && printf -v line '%q' "$line"
+	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
+	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+
+	    eval "commandOutput=\"\$(execute ${redirPrefix})\" ${redirSuffix}" \
+		|| { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+	    isFirst=
+
+	    if [ "$isAppend" ]; then
+		printf '%s%s%s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "$commandOutput"
+	    else
+		printf '%s%s%s\n' "$commandOutput" "$AUGMENTLINES_SEPARATOR" "$originalLine"
+	    fi
+	done
+	exit $status
+	;;
+esac
