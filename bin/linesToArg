@@ -61,6 +61,10 @@ HELPDESCRIPTION
     --summarize-failed-separator SEP
     --between-command BETWEEN-COMMAND
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
+SEE ALSO:
+- augmentLines additionally captures each COMMAND's output and combines it with
+  the original line.
+
 EXIT STATUS:
 Overall exit status is the highest status of all. If you specify any
 runWith[Prompt] argument, --worst-status needs to be explicitly passed.

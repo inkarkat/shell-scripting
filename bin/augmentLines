@@ -64,6 +64,9 @@ HELPDESCRIPTION
     --summarize-failed-separator SEP
     --between-command BETWEEN-COMMAND
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
+SEE ALSO:
+- linesToArg just read and passed individual lines to COMMAND without the output
+  capture.
 
 EXIT STATUS:
 Overall exit status is the highest status of all. If you specify any
