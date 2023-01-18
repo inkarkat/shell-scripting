@@ -1,8 +1,8 @@
 #!/bin/bash
 
-: ${LINESTOARG_LINE_WHAT=line}
-: ${LINESTOARG_ARG_MARKER='{}'}
-argMarker="$LINESTOARG_ARG_MARKER"; unset LINESTOARG_ARG_MARKER
+: ${AUGMENTLINES_SEPARATOR=$'\t'}
+: ${AUGMENTLINES_ARG_MARKER='{}'}
+argMarker="$AUGMENTLINES_ARG_MARKER"; unset AUGMENTLINES_ARG_MARKER
 
 hasProgressNotification=; type -t progressNotification >/dev/null && hasProgressNotification=t
 
@@ -10,7 +10,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--emulate-prompt]] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-p|--prepend] [-1|--stdout|-2|--stderr] [-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--emulate-prompt]] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
 }
 printUsage()
 {
@@ -25,14 +25,17 @@ printLongUsage()
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
 Read lines from standard input and pass each individually (${argMarker:+either }appended${argMarker:+ or
-replacing any $argMarker marker}) to COMMAND. If COMMAND transforms the argument
-to output line(s), this works like map.
-Similar to xargs --no-run-if-empty -d '\\n' [-I {}] -n 1 COMMAND.
+replacing any $argMarker marker}) to COMMAND, capture its output, and append it
+to the original line.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --prepend|-p	Put the captured output in front of the original line
+			instead of appending it.
+    --stdout|-1		Only capture standard output.
+    --stderr|-2		Only capture error output.
     --run-if-empty|-r	Also run COMMANDs (without any supplied arguments) if
 			there is no input. By default, nothing will be executed.
     --command|-c CMD	The command line to be executed. When this is a simple
@@ -62,8 +65,8 @@ HELPDESCRIPTION
     --between-command BETWEEN-COMMAND
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
 SEE ALSO:
-- augmentLines additionally captures each COMMAND's output and combines it with
-  the original line.
+- linesToArg just read and passed individual lines to COMMAND without the output
+  capture.
 
 EXIT STATUS:
 Overall exit status is the highest status of all. If you specify any
@@ -71,9 +74,12 @@ runWith[Prompt] argument, --worst-status needs to be explicitly passed.
 
 Example:
 HELPTEXT
-    printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'ping -c1 -q --'
+    printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'time -f %E curl -s -o /dev/null'
 }
 
+isAppend=t
+redirPrefix='2>&1'
+redirSuffix=
 progressSink=
 with=
 isRunIfEmpty=
@@ -86,6 +92,9 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--prepend|-p)	shift; isAppend=;;
+	--stdout|-1)	shift; redirPrefix='';;
+	--stderr|-2)	shift; redirPrefix='3>&1 1>&2 2>&3 3>&-'; redirSuffix='3>&1 1>&2 2>&3 3>&-';;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
@@ -141,6 +150,14 @@ else
     reportProgress() { :; }
 fi
 
+execute()
+{
+    if [ "$isNeedEval" ]; then
+	eval "${interpolatedCommands[@]}" '"${a[@]}"'
+    else
+	"${interpolatedCommands[@]}" "${a[@]}"
+    fi
+}
 
 isFirst=t
 case "$with" in
@@ -149,6 +166,7 @@ case "$with" in
 	quoter='%q'; [ "$isNeedEval" ] && quoter='%s'
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
+	    originalLine="$line"
 	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
 		if [ "${betweenCommand:$((${#betweenCommand} - 1))}" = ';' ]; then
 		    printf '%s ' "$betweenCommand"  # Prepend the BETWEEN-COMMAND to the next line's execution (so there's no separate prompt) if it ends with a semicolon. Its exit status is then ignored.
@@ -164,8 +182,13 @@ case "$with" in
 	    typeset -a a=("$line")   # Quoter for isNeedEval=t is off, so need to use quoted line here.
 	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
 
-	    printf "$quoter " "${interpolatedCommands[@]}" "${a[@]}"
-	    printf '\n'
+	    printf -v quotedCommand "$quoter " "${interpolatedCommands[@]}" "${a[@]}"
+
+	    if [ "$isAppend" ]; then
+		printf 'printf %%s%%s%%s\\\\n %q %q $(%s %s) %s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "${quotedCommand% }" "$redirPrefix" "$redirSuffix"
+	    else
+		printf 'printf %%s%%s%%s\\\\n $(%s %s) %q %q %s\n' "${quotedCommand% }" "$redirPrefix" "$AUGMENTLINES_SEPARATOR" "$originalLine" "$redirSuffix"
+	    fi
 	    isFirst=
 	done | ${runWithCommand:?} "${runWithPromptArgs[@]}"
 	;;
@@ -173,6 +196,7 @@ case "$with" in
 	status=0
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
+	    originalLine="$line"
 	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
 		eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    fi
@@ -188,12 +212,15 @@ case "$with" in
 	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
 	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
 
-	    if [ "$isNeedEval" ]; then
-		eval "${interpolatedCommands[@]}" '"${a[@]}"'
-	    else
-		"${interpolatedCommands[@]}" "${a[@]}"
-	    fi || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+	    eval "commandOutput=\"\$(execute ${redirPrefix})\" ${redirSuffix}" \
+		|| { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    isFirst=
+
+	    if [ "$isAppend" ]; then
+		printf '%s%s%s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "$commandOutput"
+	    else
+		printf '%s%s%s\n' "$commandOutput" "$AUGMENTLINES_SEPARATOR" "$originalLine"
+	    fi
 	done
 	exit $status
 	;;
