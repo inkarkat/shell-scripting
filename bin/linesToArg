@@ -153,12 +153,13 @@ case "$with" in
 		fi
 	    fi
 
+	    reportProgress "$line"
+
 	    [ "$isNeedEval" ] && printf -v line '%q' "$line"
 	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
 	    typeset -a a=("$line")   # Quoter for isNeedEval=t is off, so need to use quoted line here.
 	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
 
-	    reportProgress "$line"
 	    printf "$quoter " "${interpolatedCommands[@]}" "${a[@]}"
 	    printf '\n'
 	    isFirst=
@@ -176,12 +177,13 @@ case "$with" in
 		header ${isFirst:+--first} "$line"
 	    fi
 
+	    reportProgress "$line"
+
 	    typeset -a a=("$line")   # No quoting, as array provides separation.
 	    [ "$isNeedEval" ] && printf -v line '%q' "$line"
 	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
 	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
 
-	    reportProgress "$line"
 	    if [ "$isNeedEval" ]; then
 		eval "${interpolatedCommands[@]}" '"${a[@]}"'
 	    else
