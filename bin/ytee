@@ -123,7 +123,7 @@ parallelTeePipeline()
 
 case "$buffering" in
     input)
-	TMPFILE="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+	TMPFILE="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
 	[ "${DEBUG:-}" ] || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
 	cat > "$TMPFILE" || exit $?
 
@@ -142,16 +142,16 @@ case "$buffering" in
 	    exit 2
 	fi
 
-	TMPDIR="$(mktemp --directory --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || { dirspec="${TEMP:-/tmp}/$(basename -- "$0").$$$RANDOM"; mkdir -p -- "$dirspec" && printf %s "$dirspec"; })" || exit 3
-	[ "${DEBUG:-}" ] || trap 'rm -rf -- "$TMPDIR" 2>/dev/null' EXIT
+	tempDirspec="$(mktemp --directory --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || { dirspec="${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM"; mkdir -p -- "$dirspec" && printf %s "$dirspec"; })" || exit 3
+	[ "${DEBUG:-}" ] || trap 'rm -rf -- "$tempDirspec" 2>/dev/null' EXIT
 
 	typeset -a capturingCommandLines=()
 	typeset -a captureFilespecs=()
 	for ((i = 1; i <= ${#commandLines[@]}; i++))
 	do
-	    captureFilespecs+=("${TMPDIR}/$i")
+	    captureFilespecs+=("${tempDirspec}/$i")
 
-	    commandLine="{ ${commandLines[$((i - 1))]}; } > \"\${TMPDIR}/$i\""
+	    commandLine="{ ${commandLines[$((i - 1))]}; } > \"\${tempDirspec}/$i\""
 	    if [ $i -lt ${#commandLines[@]} ]; then
 		commandLine="tee >(${commandLine}) |"
 	    fi
