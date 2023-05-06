@@ -1,0 +1,83 @@
+#!/bin/bash
+set -o pipefail
+shopt -qs extglob
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-e|--edit|--no-edit] [-m MESSAGE|--message=MESSAGE|-F FILE|--file=FILE [...]] [-d|--directory DIR] [-b|--basename BASE] [-e|--extension EXT] [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Emulation of "git commit" that takes the same arguments (and even supports a
+mixture and multitude of sources), possibly launches the editor, and then prints
+the result.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --directory|-d DIR	Use (and create) a subdirectory DIR inside the temp
+			directory to store the temp file in.
+    --basename|-b BASE	Use BASE as the prefix of the temp file name.
+    --extension|-e EXT	Use EXT as the temp file extension.
+
+EXIT STATUS:
+    0	Complete success.
+    1	Resulting message is empty.
+    2	Bad invocation, wrong or missing command-line arguments.
+    4	A passed FILE cannot be read.
+HELPTEXT
+}
+
+readonly NL=$'\n'
+addMessage()
+{
+    local add="${1?}"; shift
+    message+="${message:+$'\n\n'}${add%%+($NL)}"
+}
+
+unset isEdit
+unset message
+typeset -a tempeditArgs=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+
+	--edit|-e)	shift; isEdit=t;;
+	--no-edit)	shift; isEdit=;;
+	--message|-m)	shift; addMessage "${1?}"; shift;;
+	--message=*)	addMessage "${1#--message=}"; shift;;
+	--file|-F)	shift; addMessage "$(<"${1?}")" || exit 4; shift;;
+	--file=*)	addMessage "$(<"${1#--file=}")" || exit 4; shift;;
+
+	-[bde])		tempeditArgs+=("$1" "${2?}"); shift; shift;;
+	--@(basename|directory|extension))
+			tempeditArgs+=("$1" "${2?}"); shift; shift;;
+
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+
+if [ -z "${message+t}" ] || [ "$isEdit" ]; then
+    message="$(
+	printf '%s\n' "$message" \
+	    | tempedit --cleanup --edit-empty "${tempeditArgs[@]}"
+    )"
+fi
+
+[ -n "$message" ] && printf '%s\n' "$message"
