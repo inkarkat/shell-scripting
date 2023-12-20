@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${ARGSAND_EXEC_END=;}
 : ${ARGSAND_ARG_MARKER='{}'}
 argMarker="$ARGSAND_ARG_MARKER"; unset ARGSAND_ARG_MARKER
 
@@ -7,7 +8,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-o|--or \"NOOUT-COMMANDLINE\" [...]] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} ; [--] ARGUMENT [...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-o|--or \"NOOUT-COMMANDLINE\" [...]] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} $ARGSAND_EXEC_END [--] ARGUMENT [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -33,9 +34,9 @@ HELPDESCRIPTION
 			either this or COMMAND(s) will be executed, never both.
     --command|-c CMD	Execute CMD as a command-line. ARGUMENTs ${argMarker:+either }are
 			appended${argMarker:+ or replace any $argMarker marker} inside COMMANDLINE.
-    --exec COMMAND ;	Execute COMMAND; all following arguments are taken to be
+    --exec COMMAND $ARGSAND_EXEC_END	Execute COMMAND; all following arguments are taken to be
 			arguments to the COMMAND until an argument consisting of
-			';' is encountered. ARGUMENTs ${argMarker:+either }are appended${argMarker:+ or
+			'${ARGSAND_EXEC_END}' is encountered. ARGUMENTs ${argMarker:+either }are appended${argMarker:+ or
 			replace any $argMarker marker} inside COMMANDLINE.
 EXIT STATUS:
     0	Output occurred, and COMMAND(s) executed successfully.
@@ -57,14 +58,14 @@ do
 	--exec)		shift
 			cmd=
 			printf -v escapedFileMarker %q "$argMarker"
-			while [ $# -gt 0 -a "$1" != ';' ]
+			while [ $# -gt 0 -a "$1" != "$ARGSAND_EXEC_END" ]
 			do
 			    printf -v quotedArg '%q' "$1"
 			    cmd+="${cmd:+ }${quotedArg//"$escapedFileMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    echo "ERROR: --exec command must be concluded with '${ARGSAND_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
@@ -76,7 +77,7 @@ do
     esac
 done
 if [ ${#commands[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND ... ;.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND ... $ARGSAND_EXEC_END"
     echo
     printUsage "$0"
     exit 2

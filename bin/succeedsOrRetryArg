@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${SUCCEEDSORRETRYARG_EXEC_END=;}
 : ${SUCCEEDSORRETRYARG_ARG_MARKER='{}'}
 argMarker="$SUCCEEDSORRETRYARG_ARG_MARKER"; unset SUCCEEDSORRETRYARG_ARG_MARKER
 
@@ -7,7 +8,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--first-failure|--either-failure] [-r|--retry-command "RETRY-COMMANDLINE"|--retry-exec SIMPLE-RETRY-COMMAND [...] ; [-r ...]] -c|--command "COMMANDLINE" [-c ...] | --exec SIMPLECOMMAND [...] ; | [--] SIMPLECOMMAND [...] ARG [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[--first-failure|--either-failure] [-r|--retry-command \"RETRY-COMMANDLINE\"|--retry-exec SIMPLE-RETRY-COMMAND [...] $SUCCEEDSORRETRYARG_EXEC_END [-r ...]] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] $SUCCEEDSORRETRYARG_EXEC_END | [--] SIMPLECOMMAND [...] ARG [-?|-h|--help]"
 }
 printUsage()
 {
@@ -36,18 +37,18 @@ HELPDESCRIPTION
 			the exit status of RETRY-COMMAND.
     --command|-c CMD	Execute COMMAND, with ARG ${argMarker:+either }appended to
 			${argMarker:+or replacing any $argMarker marker inside} it.
-    --exec COMMAND [...] ;
+    --exec COMMAND [...] $SUCCEEDSORRETRYARG_EXEC_END
 			Execute COMMAND; all following arguments are taken to be
 			arguments to the COMMAND until an argument consisting of
-			';' is encountered, with ARG ${argMarker:+either} appended to
+			'${SUCCEEDSORRETRYARG_EXEC_END}' is encountered, with ARG ${argMarker:+either} appended to
 			${argMarker:+or replacing any $argMarker marker inside} it.
     --retry-command|-r RETRY-COMMAND
 			If COMMAND fails, execute RETRY-COMMAND, with ARG ${argMarker:+either}
 			appended to${argMarker:+ or replacing any $argMarker marker inside} it.
-    --retry-exec COMMAND [...] ;
+    --retry-exec COMMAND [...] $SUCCEEDSORRETRYARG_EXEC_END
 			If COMMAND fails, all following arguments are taken to
 			be arguments to the RETRY-COMMAND until an argument
-			consisting of ';' is encountered, with ARG ${argMarker:+either}
+			consisting of '${SUCCEEDSORRETRYARG_EXEC_END}' is encountered, with ARG ${argMarker:+either}
 			appended to${argMarker:+ or replacing any $argMarker marker inside} it.
     By default, just prints ARG.
 HELPTEXT
@@ -70,14 +71,14 @@ do
 	--retry-exec)	shift
 			cmd=
 			printf -v escapedArgMarker %q "$argMarker"
-			while [ $# -gt 0 -a "$1" != ';' ]
+			while [ $# -gt 0 -a "$1" != "$SUCCEEDSORRETRYARG_EXEC_END" ]
 			do
 			    printf -v quotedArg '%q' "$1"
 			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo 'ERROR: --retry-exec command must be concluded with ;!'; echo; printUsage "$0"
+			    echo "ERROR: --retry-exec command must be concluded with '${SUCCEEDSORRETRYARG_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
@@ -86,14 +87,14 @@ do
 	--exec)		shift
 			cmd=
 			printf -v escapedArgMarker %q "$argMarker"
-			while [ $# -gt 0 -a "$1" != ';' ]
+			while [ $# -gt 0 -a "$1" != "$SUCCEEDSORRETRYARG_EXEC_END" ]
 			do
 			    printf -v quotedArg '%q' "$1"
 			    cmd="${cmd}${cmd:+ }${quotedArg//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    echo "ERROR: --exec command must be concluded with '${SUCCEEDSORRETRYARG_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
@@ -125,7 +126,7 @@ if [ $# -ne 0 ]; then
     fi
 fi
 if [ ${#commands[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ;, or SIMPLECOMMAND.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $SUCCEEDSORRETRYARG_EXEC_END or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2

@@ -1,11 +1,13 @@
 #!/bin/bash
 set -o pipefail
 
+: ${YTEE_EXEC_END=;}
+
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-i|--input-buffered [-s|--sequential]|-o|--output-buffered] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-i|--input-buffered [-s|--sequential]|-o|--output-buffered] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] --exec SIMPLECOMMAND [...] $YTEE_EXEC_END [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -47,9 +49,9 @@ order is undefined (but output will appear immediately).
     --command|-c CMD	Pipe the input into CMD.
 			Multiple CMDs (and SIMPLECOMMAND) are fed the same
 			duplicated input.
-    --exec CMD [...] ;	Pipe the input into CMD. All following arguments are
+    --exec CMD [...] $YTEE_EXEC_END	Pipe the input into CMD. All following arguments are
 			taken to be arguments to the CMD until an argument
-			consisting of ';' is encountered.
+			consisting of '${YTEE_EXEC_END}' is encountered.
 HELPTEXT
 }
 
@@ -81,14 +83,14 @@ do
 	--command|-c)	shift; addCommandLine "$1"; shift;;
 	--exec)		shift
 			cmd=
-			while [ $# -gt 0 -a "$1" != ';' ]
+			while [ $# -gt 0 -a "$1" != "$YTEE_EXEC_END" ]
 			do
 			    printf -v quotedArg '%q' "$1"
 			    cmd="${cmd}${cmd:+ }${quotedArg}"
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    echo "ERROR: --exec command must be concluded with '${YTEE_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
@@ -106,7 +108,7 @@ if [ $# -ne 0 ]; then
     addCommandLine "${quotedSimpleCommand% }"
 fi
 if [ ${#commandLines[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ; , or SIMPLECOMMAND.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] ${YTEE_EXEC_END} or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2

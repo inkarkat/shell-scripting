@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${ARGSORERROR_EXEC_END=;}
 : ${ARGSORERROR_ARG_WHAT:=arguments}
 : ${ARGSORERROR_FAILURE_STATUS:=99}
 : ${ARGSORERROR_ARG_MARKER='{}'}
@@ -10,7 +11,7 @@ printShortUsage()
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: [ARGSORERROR_ARG_WHAT=%q] [ARGSORERROR_FAILURE_STATUS=%d] %q %s\n' "$ARGSORERROR_ARG_WHAT" "$ARGSORERROR_FAILURE_STATUS" \
-	"$(basename "$1")" "[-E|--fail-if-empty] [-m|--message ERROR-MESSAGE] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} ; [--] ARGUMENT [...] [-?|-h|--help]"
+	"$(basename "$1")" "[-E|--fail-if-empty] [-m|--message ERROR-MESSAGE] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} $ARGSORERROR_EXEC_END [--] ARGUMENT [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -37,9 +38,9 @@ HELPDESCRIPTION
 			default is "ERROR: No arguments."
     --command|-c CMD	Execute CMD as a command-line. ARGUMENTs ${argMarker:+either }are
 			appended${argMarker:+ or replace any $argMarker marker} inside COMMANDLINE.
-    --exec COMMAND ;	Execute COMMAND; all following arguments are taken to be
+    --exec COMMAND $ARGSORERROR_EXEC_END	Execute COMMAND; all following arguments are taken to be
 			arguments to the COMMAND until an argument consisting of
-			';' is encountered. ARGUMENTs ${argMarker:+either }are appended${argMarker:+ or
+			'${ARGSORERROR_EXEC_END}' is encountered. ARGUMENTs ${argMarker:+either }are appended${argMarker:+ or
 			replace any $argMarker marker} inside COMMANDLINE.
 EXIT STATUS:
     *   any exit status from COMMAND(s)
@@ -62,14 +63,14 @@ do
 	--exec)		shift
 			cmd=
 			printf -v escapedFileMarker %q "$argMarker"
-			while [ $# -gt 0 -a "$1" != ';' ]
+			while [ $# -gt 0 -a "$1" != "$ARGSORERROR_EXEC_END" ]
 			do
 			    printf -v quotedArg '%q' "$1"
 			    cmd+="${cmd:+ }${quotedArg//"$escapedFileMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    echo "ERROR: --exec command must be concluded with '${ARGSORERROR_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
@@ -88,7 +89,7 @@ isEmptyArguments()
     done
 }
 if [ ${#commands[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND ... ;.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND ... $ARGSORERROR_EXEC_END"
     echo
     printUsage "$0"
     exit 2

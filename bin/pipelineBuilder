@@ -1,11 +1,13 @@
 #!/bin/bash
 set -o pipefail
 
+: ${PIPELINEBUILDER_EXEC_END=;}
+
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-p|--paginate] [-r|--reverse] -c|--command "COMMANDLINE [-c ...] --exec SIMPLECOMMAND [...] ; [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -35,9 +37,9 @@ HELPDESCRIPTION
     --command|-c CMD	Pipe the input into CMD / add CMD as a pipeline step.
 			Multiple CMDs (and SIMPLECOMMAND) are combined as
 			pipelines.
-    --exec CMD [...] ;	Pipe the input into CMD / add CMD as a pipeline step.
+    --exec CMD [...] $PIPELINEBUILDER_EXEC_END	Pipe the input into CMD / add CMD as a pipeline step.
 			All following arguments are taken to be arguments to the
-			CMD until an argument consisting of ';' is encountered.
+			CMD until an argument consisting of '${PIPELINEBUILDER_EXEC_END}' is encountered.
 HELPTEXT
 }
 
@@ -67,14 +69,14 @@ do
 			;;
 	--exec)		shift
 			cmd=
-			while [ $# -gt 0 -a "$1" != ';' ]
+			while [ $# -gt 0 -a "$1" != "$PIPELINEBUILDER_EXEC_END" ]
 			do
 			    printf -v quotedArg '%q' "$1"
 			    cmd="${cmd}${cmd:+ }${quotedArg}"
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo 'ERROR: --exec command must be concluded with ;!'; echo; printUsage "$0"
+			    echo "ERROR: --exec command must be concluded with '${PIPELINEBUILDER_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
@@ -97,7 +99,7 @@ if [ $# -ne 0 ]; then
     fi
 fi
 if [ ${#commands[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ;, or SIMPLECOMMAND.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2

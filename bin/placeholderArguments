@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${PLACEHOLDERARGUMENTS_EXEC_END=;}
 : ${PLACEHOLDERARGUMENTS_ARG_MARKER:='{}'}
 argMarker="$PLACEHOLDERARGUMENTS_ARG_MARKER"; unset PLACEHOLDERARGUMENTS_ARG_MARKER
 
@@ -7,7 +8,7 @@ printShortUsage()
 {
     printf 'Usage: %q %s\n' "$(basename "$1")" '[-r|--no-run-if-empty] [-?|-h|--help] ...'
     printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -c|--command \"COMMANDLINE [...] [${argMarker}] [...]\" [-c ...] [ARGUMENT ...]"
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] --exec SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] ; [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] --exec SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] $PLACEHOLDERARGUMENTS_EXEC_END [ARGUMENT ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -- SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] -- [ARGUMENT ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -n|--command-arguments N SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] [ARGUMENT ...]"
 }
@@ -26,7 +27,7 @@ printLongUsage()
 Execute COMMAND(s) while replacing all occurrences of $argMarker in its
 arguments with ARGUMENT(s).
 COMMAND (and its COMMAND-ARGUMENT(s)) can be specified in various ways: As one
-quoted argument with -c|--command, arguments after --exec until a ';', separated
+quoted argument with -c|--command, arguments after --exec until a '${PLACEHOLDERARGUMENTS_EXEC_END}', separated
 by special arguments --, or (especially useful in scripts when you know the
 \${#ARGS[@]} but cannot influence the contents) by number of arguments.
 HELPDESCRIPTION
@@ -63,13 +64,13 @@ do
 			shift; isRunWithEmptyArguments=;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--exec)		shift
-			while [ $# -gt 0 -a "$1" != ';' ]
+			while [ $# -gt 0 -a "$1" != "$PLACEHOLDERARGUMENTS_EXEC_END" ]
 			do
 			    simpleCommand+=("$1")
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo 'ERROR: --exec command must be concluded with ;'; echo; printUsage "$0"
+			    echo "ERROR: --exec command must be concluded with '${PLACEHOLDERARGUMENTS_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
@@ -117,7 +118,7 @@ if [ ${#simpleCommand[@]} -gt 0 ]; then
     fi
 fi
 if [ ${#commands[@]} -eq 0 ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] ${PLACEHOLDERARGUMENTS_EXEC_END} or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2
