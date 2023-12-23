@@ -5,7 +5,7 @@
 printShortUsage()
 {
     printf 'Usage: %q %s\n' "$(basename "$1")" "-c|--command \"COMMANDLINE [...]\" [-c ...] [ARGUMENT ...]"
-    printf 'Usage: %q %s\n' "$(basename "$1")" "--exec SIMPLECOMMAND [COMMAND-ARG ...] $SWALLOWARGUMENTS_EXEC_END [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "--exec SIMPLECOMMAND [COMMAND-ARG ...] $SWALLOWARGUMENTS_EXEC_END [--exec ...] [ARGUMENT ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "-- SIMPLECOMMAND [COMMAND-ARG ...] -- [ARGUMENT ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "-n|--command-arguments N SIMPLECOMMAND [COMMAND-ARG ...] [ARGUMENT ...]"
 }
@@ -40,7 +40,6 @@ HELPTEXT
 
 isNeedEval=
 typeset -a commands=()
-typeset -a simpleCommand=()
 commandArgumentNum=
 while [ $# -ne 0 ]
 do
@@ -48,9 +47,11 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--exec)		shift
+			cmd=
 			while [ $# -gt 0 -a "$1" != "$SWALLOWARGUMENTS_EXEC_END" ]
 			do
-			    simpleCommand+=("$1")
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg}"
 			    shift
 			done
 			if [ $# -eq 0 ]; then
@@ -58,6 +59,8 @@ do
 			    exit 2
 			fi >&2
 			shift
+			commands+=(${commands:+;} "$cmd")
+			isNeedEval=t
 			;;
 	--command-arguments|-n)
 			shift; commandArgumentNum="$1"; shift;;
@@ -67,6 +70,7 @@ do
     esac
 done
 
+typeset -a simpleCommand=()
 case "$1" in
     --) shift
 	while [ $# -gt 0 -a "$1" != '--' ]

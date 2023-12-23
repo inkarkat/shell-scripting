@@ -8,7 +8,7 @@ printShortUsage()
 {
     printf 'Usage: %q %s\n' "$(basename "$1")" '[-r|--no-run-if-empty] [-?|-h|--help] ...'
     printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -c|--command \"COMMANDLINE [...] [${argMarker}] [...]\" [-c ...] [ARGUMENT ...]"
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] --exec SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] $PLACEHOLDERARGUMENTS_EXEC_END [ARGUMENT ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[...] --exec SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] $PLACEHOLDERARGUMENTS_EXEC_END [--exec ...] [ARGUMENT ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -- SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] -- [ARGUMENT ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "[...] -n|--command-arguments N SIMPLECOMMAND [COMMAND-ARG ...] [${argMarker}] [COMMAND-ARG ...] [ARGUMENT ...]"
 }
@@ -53,7 +53,6 @@ HELPTEXT
 
 isNeedEval=
 typeset -a commands=()
-typeset -a simpleCommand=()
 commandArgumentNum=
 isRunWithEmptyArguments=t
 while [ $# -ne 0 ]
@@ -64,9 +63,11 @@ do
 			shift; isRunWithEmptyArguments=;;
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--exec)		shift
+			cmd=
 			while [ $# -gt 0 -a "$1" != "$PLACEHOLDERARGUMENTS_EXEC_END" ]
 			do
-			    simpleCommand+=("$1")
+			    printf -v quotedArg '%q' "$1"
+			    cmd="${cmd}${cmd:+ }${quotedArg}"
 			    shift
 			done
 			if [ $# -eq 0 ]; then
@@ -74,6 +75,8 @@ do
 			    exit 2
 			fi >&2
 			shift
+			commands+=(${commands:+;} "$cmd")
+			isNeedEval=t
 			;;
 	--command-arguments|-n)
 			shift; commandArgumentNum="$1"; shift;;
@@ -83,6 +86,7 @@ do
     esac
 done
 
+typeset -a simpleCommand=()
 case "$1" in
     --) shift
 	while [ $# -gt 0 -a "$1" != '--' ]
