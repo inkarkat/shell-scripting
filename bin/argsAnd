@@ -8,7 +8,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-o|--or \"NOOUT-COMMANDLINE\" [...]] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} $ARGSAND_EXEC_END [--] ARGUMENT [...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-o|--or \"NOOUT-COMMANDLINE\" [...]] -c|--command \"COMMANDLINE\" [...] [-c ...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} $ARGSAND_EXEC_END [--exec ...] [--] ARGUMENT [...] [-?|-h|--help]"
 }
 printUsage()
 {

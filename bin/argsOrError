@@ -11,7 +11,7 @@ printShortUsage()
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
     printf 'Usage: [ARGSORERROR_ARG_WHAT=%q] [ARGSORERROR_FAILURE_STATUS=%d] %q %s\n' "$ARGSORERROR_ARG_WHAT" "$ARGSORERROR_FAILURE_STATUS" \
-	"$(basename "$1")" "[-E|--fail-if-empty] [-m|--message ERROR-MESSAGE] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} $ARGSORERROR_EXEC_END [--] ARGUMENT [...] [-?|-h|--help]"
+	"$(basename "$1")" "[-E|--fail-if-empty] [-m|--message ERROR-MESSAGE] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND ... ${argMarker:+[}${argMarker}${argMarker:+]} $ARGSORERROR_EXEC_END [--exec ...] [--] ARGUMENT [...] [-?|-h|--help]"
 }
 printUsage()
 {

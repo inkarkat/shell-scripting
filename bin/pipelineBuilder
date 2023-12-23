@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
