@@ -10,7 +10,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" '[--with-header|--with-prompt [--initial-status NUM] [--trailing-prompt|--no-trailing-prompt] [--no-output-no-prompt] [--no-output-no-error] [--emulate-prompt]] [--no-success-no-count|--no-count-on N] [--exit-on-success|--exit-on-failure|--exit-on NUM] [--worst-status] [--comment COMMENT] [--summarize-failed ERROR-TEXT [--summarize-failed-separator SEP]]] [--between-command BETWEEN-COMMAND] -c|--command "COMMANDLINE" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" "[--with-header|--with-prompt $(runWithPrompt --get-short-usage 2>/dev/null)] [--between-command BETWEEN-COMMAND] -c|--command \"COMMANDLINE\" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -44,21 +44,9 @@ HELPDESCRIPTION
 			execution.
     --with-prompt	Emulate a full prompt (as if invoking COMMAND) before
 			each execution.
-    --emulate-prompt	    Customizations of the prompt emulation around
-    --initial-status NUM    COMMAND; cp. runWithPrompt
-    --trailing-prompt
-    --no-trailing-prompt
-    --no-output-no-prompt
-    --no-output-no-error
-    --no-success-no-count   Stop on condition / summarize at end; cp. runWith
-    --no-count-on N	    Cannot be combined with --with-header.
-    --exit-on-success
-    --exit-on-failure
-    --exit-on NUM
-    --worst-status
-    --comment COMMENT
-    --summarize-failed ERROR-TEXT
-    --summarize-failed-separator SEP
+HELPTEXT
+    runWithPrompt --get-long-usage 2>/dev/null
+    cat <<HELPTEXT
     --between-command BETWEEN-COMMAND
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
 SEE ALSO:
@@ -95,7 +83,7 @@ do
 
 	--trailing-prompt|--no-trailing-prompt|--no-output-no-prompt|--no-output-no-error|--no-success-no-count|--exit-on-success|--exit-on-failure|--emulate-prompt|--worst-status)
 			runWithPromptArgs+=("$1"); shift;;
-	--initial-status|--no-count-on|--exit-on|--comment|--summarize-failed|--summarize-failed-separator)
+	--initial-status|--no-count-on|--exit-on|--exit-unless|--comment|--summarize-failed|--summarize-failed-separator)
 			runWithPromptArgs+=("$1" "$2"); shift; shift;;
 
 	--between-command)
