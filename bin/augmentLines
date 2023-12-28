@@ -74,7 +74,6 @@ isRunIfEmpty=
 isNeedEval=
 typeset -a commands=()
 betweenCommand=
-runWithCommand=runWith
 typeset -a runWithPromptArgs=()
 while [ $# -ne 0 ]
 do
@@ -88,12 +87,12 @@ do
 	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
 	--progress)	shift; progressSink="$1"; shift;;
 	--with-header)	shift; with=header;;
-	--with-prompt)	shift; with=prompt; runWithCommand=runWithPrompt;;
+	--with-prompt)	shift; with=runWithPrompt;;
 
 	--trailing-prompt|--no-trailing-prompt|--no-output-no-prompt|--no-output-no-error|--no-success-no-count|--exit-on-success|--exit-on-failure|--emulate-prompt|--worst-status)
-			runWithPromptArgs+=("$1"); shift;;
+			runWithPromptArgs+=("$1"); shift; : ${with:=runWith};;
 	--initial-status|--no-count-on|--exit-on|--exit-unless|--comment|--summarize-failed|--summarize-failed-separator)
-			runWithPromptArgs+=("$1" "$2"); shift; shift;;
+			runWithPromptArgs+=("$1" "$2"); shift; shift; : ${with:=runWith};;
 
 	--between-command)
 			shift; betweenCommand="$1"; shift;;
@@ -118,13 +117,12 @@ if [ ${#commands[@]} -eq 0 ]; then
     echo
     printUsage "$0"
     exit 2
-elif [ ${#runWithPromptArgs[@]} -gt 0 -a "$with" = header ]; then
+elif [ ${#runWithPromptArgs[@]} -gt 0 -a "$with" = 'header' ]; then
     echo 'ERROR: Cannot combine runWith[Prompt] arguments with --with-header.'
     echo
     printUsage "$0"
     exit 2
 fi >&2
-[ ${#runWithPromptArgs[@]} -gt 0 ] && with=prompt
 
 if [ "$hasProgressNotification" ] && [ -n "$progressSink" ]; then
     exec 3> >(progressNotification --to "$progressSink" ${LINESTOARG_LINE_WHAT:+--prepend-count "${LINESTOARG_LINE_WHAT}"} 2>/dev/null)
@@ -148,8 +146,9 @@ execute()
 }
 
 isFirst=t
+isHeader=
 case "$with" in
-    prompt)
+    runWith*)
 	[ ${#runWithPromptArgs[@]} -eq 0 ] && runWithPromptArgs=(--worst-status)
 	quoter='%q'; [ "$isNeedEval" ] && quoter='%s'
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
@@ -178,9 +177,11 @@ case "$with" in
 		printf 'printf %%s%%s%%s\\\\n $(%s %s) %q %q %s\n' "${quotedCommand% }" "$redirPrefix" "$AUGMENTLINES_SEPARATOR" "$originalLine" "$redirSuffix"
 	    fi
 	    isFirst=
-	done | ${runWithCommand:?} "${runWithPromptArgs[@]}"
+	done | ${with:?} "${runWithPromptArgs[@]}"
 	;;
-    *)
+    header)
+	isHeader=t;&
+    '')
 	status=0
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
@@ -189,9 +190,7 @@ case "$with" in
 		eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    fi
 
-	    if [ "$with" = 'header' ]; then
-		header ${isFirst:+--first} "$line"
-	    fi
+	    [ ! "$isHeader" ] || header ${isFirst:+--first} "$line"
 
 	    reportProgress "$line"
 
@@ -212,4 +211,5 @@ case "$with" in
 	done
 	exit $status
 	;;
+    *)	printf >&2 'ASSERT: Invalid strategy: %s\n' "$with"; exit 3;;
 esac
