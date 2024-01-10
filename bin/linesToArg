@@ -49,6 +49,7 @@ HELPTEXT
     cat <<HELPTEXT
     --between-command BETWEEN-COMMAND
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
+		    The last COMMAND's exit status is in \$?.
 SEE ALSO:
 - augmentLines additionally captures each COMMAND's output and combines it with
   the original line.
@@ -127,6 +128,11 @@ else
     reportProgress() { :; }
 fi
 
+setStatus()
+{
+    return ${1:-0}
+}
+
 isFirst=t
 isHeader=
 case "$with" in
@@ -162,7 +168,7 @@ case "$with" in
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
 	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
-		eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+		setStatus $exitStatus; eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    fi
 
 	    [ ! "$isHeader" ] || header ${isFirst:+--first} "$line"

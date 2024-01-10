@@ -52,6 +52,7 @@ HELPTEXT
     cat <<HELPTEXT
     --between-command BETWEEN-COMMAND
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
+		    The last COMMAND's exit status is in \$?.
 SEE ALSO:
 - linesToArg just reads and passes individual lines to COMMAND, without the
   output capture.
@@ -145,6 +146,11 @@ execute()
     fi
 }
 
+setStatus()
+{
+    return ${1:-0}
+}
+
 isFirst=t
 isHeader=
 case "$with" in
@@ -187,7 +193,7 @@ case "$with" in
 	do
 	    originalLine="$line"
 	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
-		eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+		setStatus $exitStatus; eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    fi
 
 	    [ ! "$isHeader" ] || header ${isFirst:+--first} "$line"
