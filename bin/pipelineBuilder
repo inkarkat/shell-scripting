@@ -1,6 +1,7 @@
 #!/bin/bash
 set -o pipefail
 
+: ${PAGER:=less}
 : ${PIPELINEBUILDER_EXEC_END=;}
 
 printShortUsage()
@@ -54,17 +55,15 @@ addCommand()
 
 typeset pager=()
 isReverse=
-isNeedEval=
 typeset -a commands=()
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--paginate|-p)	shift; pager=("${PAGER:-less}" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=();;
+	--paginate|-p)	shift; pager=("$PAGER" --RAW-CONTROL-CHARS); [ -t 1 ] || pager=();;
 	--reverse|-r)	shift; isReverse=t;;
 	--command|-c)	shift
 			addCommand "$1"
-			isNeedEval=t
 			shift
 			;;
 	--exec)		shift
@@ -81,7 +80,6 @@ do
 			fi >&2
 			shift
 			addCommand "$cmd"
-			isNeedEval=t
 			;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -89,14 +87,10 @@ do
     esac
 done
 if [ $# -ne 0 ]; then
-    if [ "$isNeedEval" ]; then
-	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
-	# undo the effects of eval.
-	printf -v quotedSimpleCommand '%q ' "$@"
-	addCommand "${quotedSimpleCommand% }"
-    else
-	commands=("$@")
-    fi
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    printf -v quotedSimpleCommand '%q ' "$@"
+    addCommand "${quotedSimpleCommand% }"
 fi
 if [ ${#commands[@]} -eq 0 ]; then
     echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END or SIMPLECOMMAND."
@@ -105,14 +99,4 @@ if [ ${#commands[@]} -eq 0 ]; then
     exit 2
 fi >&2
 
-
-runPipeline()
-{
-    if [ "$isNeedEval" ]; then
-	eval "${commands[@]}"
-    else
-	exec "${commands[@]}"
-    fi
-}
-
-eval 'runPipeline' "${pager:+|}" '"${pager[@]}"'
+eval "${commands[@]}" "${pager:+|}" '"${pager[@]}"'

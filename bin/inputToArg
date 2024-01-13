@@ -37,7 +37,6 @@ HELPTEXT
 }
 
 isRunIfEmpty=
-isNeedEval=
 typeset -a commands=()
 while [ $# -ne 0 ]
 do
@@ -45,22 +44,18 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
 if [ $# -ne 0 ]; then
-    if [ "$isNeedEval" ]; then
-	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
-	# undo the effects of eval.
-	printf -v quotedSimpleCommand '%q ' "$@"
-	printf -v escapedArgMarker %q "$argMarker"
-	commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
-    else
-	commands=("$@")
-    fi
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    printf -v quotedSimpleCommand '%q ' "$@"
+    printf -v escapedArgMarker %q "$argMarker"
+    commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
 fi
 if [ ${#commands[@]} -eq 0 ]; then
     echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
@@ -75,11 +70,7 @@ input="$(</dev/stdin)"
 
 
 typeset -a a=("$input")
-[ "$isNeedEval" ] && printf -v input '%q' "$input"
+printf -v input '%q' "$input"
 typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$input}")
 [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
-if [ "$isNeedEval" ]; then
-    eval "${interpolatedCommands[@]}" '"${a[@]}"'
-else
-    "${interpolatedCommands[@]}" "${a[@]}"
-fi
+eval "${interpolatedCommands[@]}" '"${a[@]}"'

@@ -55,7 +55,6 @@ HELPTEXT
 }
 
 failureFrom=retry
-isNeedEval=
 typeset -a commands=()
 typeset -a retryCommands=()
 while [ $# -ne 0 ]
@@ -99,9 +98,8 @@ do
 			fi >&2
 			shift
 			commands+=(${commands:+;} "$cmd")
-			isNeedEval=t
 			;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -116,15 +114,11 @@ fi >&2
 arg="${!#}"; set -- "${@:1:$(($#-1))}"
 
 if [ $# -ne 0 ]; then
-    if [ "$isNeedEval" ]; then
-	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
-	# undo the effects of eval.
-	printf -v quotedSimpleCommand '%q ' "$@"
-	printf -v escapedArgMarker %q "$argMarker"
-	commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
-    else
-	commands=("$@")
-    fi
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    printf -v quotedSimpleCommand '%q ' "$@"
+    printf -v escapedArgMarker %q "$argMarker"
+    commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
 fi
 if [ ${#commands[@]} -eq 0 ]; then
     echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $SUCCEEDSORRETRYARG_EXEC_END or SIMPLECOMMAND."
@@ -136,15 +130,11 @@ fi >&2
 
 originalArg="$arg"
 typeset -a a=("$arg")
-[ "$isNeedEval" ] && printf -v arg '%q' "$arg"
+printf -v arg '%q' "$arg"
 typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$arg}")
 [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
 
-if [ "$isNeedEval" ]; then
-    eval "${interpolatedCommands[@]}" '"${a[@]}"'
-else
-    "${interpolatedCommands[@]}" "${a[@]}"
-fi || {
+eval "${interpolatedCommands[@]}" '"${a[@]}"' || {
     status=$?
 
     typeset -a o=("$originalArg")

@@ -39,7 +39,6 @@ HELPTEXT
 }
 
 isRunIfEmpty=
-isNeedEval=
 typeset -a commands=()
 while [ $# -ne 0 ]
 do
@@ -47,22 +46,18 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
 if [ $# -ne 0 ]; then
-    if [ "$isNeedEval" ]; then
-	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
-	# undo the effects of eval.
-	printf -v quotedSimpleCommand '%q ' "$@"
-	printf -v escapedArgMarker %q "$argMarker"
-	commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
-    else
-	commands=("$@")
-    fi
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    printf -v quotedSimpleCommand '%q ' "$@"
+    printf -v escapedArgMarker %q "$argMarker"
+    commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
 fi
 if [ ${#commands[@]} -eq 0 ]; then
     echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
@@ -76,25 +71,7 @@ readarray -t lines
 [ ${#lines[@]} -eq 0 ] && [ ! "$isRunIfEmpty" ] && exit 0
 
 
-if [ "$isNeedEval" ]; then
-    printf -v quotedLines '%q ' "${lines[@]}"; quotedLines="${quotedLines% }"
-    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedLines}")
-    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedLines")
-
-    eval "${interpolatedCommands[@]}"
-else
-    didInterpolate=
-    typeset -a interpolatedCommands=()
-    for c in "${commands[@]}"
-    do
-    if [ "$c" = "$argMarker" ]; then
-	interpolatedCommands+=("${lines[@]}")
-	didInterpolate=t
-    else
-	interpolatedCommands+=("$c")
-    fi
-    done
-    [ "$didInterpolate" ] || interpolatedCommands+=("${lines[@]}")
-
-    "${interpolatedCommands[@]}"
-fi
+printf -v quotedLines '%q ' "${lines[@]}"; quotedLines="${quotedLines% }"
+typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedLines}")
+[ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedLines")
+eval "${interpolatedCommands[@]}"

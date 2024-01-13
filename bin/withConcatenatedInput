@@ -49,7 +49,6 @@ HELPTEXT
 id=
 truncateStatus=
 truncateComparison=-eq
-isNeedEval=
 typeset -a commands=()
 while [ $# -ne 0 ]
 do
@@ -78,21 +77,17 @@ do
 			shift; truncateComparison=-eq; truncateStatus=0;;
 	--truncate-on|-X)
 			shift; truncateStatus="$1"; shift;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); isNeedEval=t; shift;;
+	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
 if [ $# -ne 0 ]; then
-    if [ "$isNeedEval" ]; then
-	# Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
-	# undo the effects of eval.
-	printf -v quotedSimpleCommand '%q ' "$@"
-	commands+=(${commands:+;} "${quotedSimpleCommand% }")
-    else
-	commands=("$@")
-    fi
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    printf -v quotedSimpleCommand '%q ' "$@"
+    commands+=(${commands:+;} "${quotedSimpleCommand% }")
 fi
 
 if [ -z "$id" ]; then
@@ -118,11 +113,7 @@ recallAndAppendInput()
 execute()
 {
     local status
-    if [ "$isNeedEval" ]; then
-	eval "${commands[@]}"
-    else
-	"${commands[@]}"
-    fi; status=$?
+    eval "${commands[@]}"; status=$?
 
     [ -n "$truncateStatus" ] || return
     [ "$status" $truncateComparison $truncateStatus ] && rm --force -- "$storedInputFilespec"
