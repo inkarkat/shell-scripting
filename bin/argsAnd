@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${ARGSAND_COMMAND_JOINER=;}
 : ${ARGSAND_EXEC_END=;}
 : ${ARGSAND_ARG_MARKER='{}'}
 argMarker="$ARGSAND_ARG_MARKER"; unset ARGSAND_ARG_MARKER
@@ -47,14 +48,14 @@ EXIT STATUS:
 HELPTEXT
 }
 
-typeset -a commands=()
-typeset -a noOutputCommands=()
+commands=
+noOutputCommands=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--or|-o)	shift; noOutputCommands+=(${noOutputCommands:+;} "$1"); shift;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--or|-o)	shift; noOutputCommands+="${noOutputCommands:+ $ARGSAND_COMMAND_JOINER }$1"; shift;;
+	--command|-c)	shift; commands+="${commands:+ $ARGSAND_COMMAND_JOINER }$1"; shift;;
 	--exec)		shift
 			cmd=
 			printf -v escapedFileMarker %q "$argMarker"
@@ -69,26 +70,26 @@ do
 			    exit 2
 			fi >&2
 			shift
-			commands+=(${commands:+;} "$cmd")
+			commands+="${commands:+ $ARGSAND_COMMAND_JOINER }${cmd}"
 			;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
-if [ ${#commands[@]} -eq 0 ]; then
+if [ -z "$commands" ]; then
     echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND ... $ARGSAND_EXEC_END"
     echo
     printUsage "$0"
     exit 2
 elif [ $# -eq 0 ]; then
-    if [ ${#noOutputCommands[@]} -gt 0 ]; then
-	eval "${noOutputCommands[@]}" || exit 126
+    if [ -n "$noOutputCommands" ]; then
+	eval "$noOutputCommands" || exit 126
     fi
     exit 1
 fi >&2
 
 printf -v quotedArgs '%q ' "$@"; quotedArgs="${quotedArgs% }"
-typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedArgs}")
-[ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedArgs")
-eval "${interpolatedCommands[@]}" || exit 125
+interpolatedCommands="${commands//"$argMarker"/$quotedArgs}"
+[ "$interpolatedCommands" = "$commands" ] && interpolatedCommands+=" $quotedArgs"
+eval "$interpolatedCommands" || exit 125

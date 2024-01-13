@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${ARGSORERROR_COMMAND_JOINER=;}
 : ${ARGSORERROR_EXEC_END=;}
 : ${ARGSORERROR_ARG_WHAT:=arguments}
 : ${ARGSORERROR_FAILURE_STATUS:=99}
@@ -51,7 +52,7 @@ HELPTEXT
 
 isFailIfEmpty=
 unset errorMessage
-typeset -a commands=()
+commands=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -59,7 +60,7 @@ do
 	--fail-if-empty|-E)
 			shift; isFailIfEmpty=t;;
 	--message|-m)	shift; errorMessage="$1"; shift;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--command|-c)	shift; commands+="${commands:+ $ARGSORERROR_COMMAND_JOINER }$1"; shift;;
 	--exec)		shift
 			cmd=
 			printf -v escapedFileMarker %q "$argMarker"
@@ -74,7 +75,7 @@ do
 			    exit 2
 			fi >&2
 			shift
-			commands+=(${commands:+;} "$cmd")
+			commands+="${commands:+ $ARGSORERROR_COMMAND_JOINER }${cmd}"
 			;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -88,7 +89,7 @@ isEmptyArguments()
 	[ -z "$arg" ] || return 1
     done
 }
-if [ ${#commands[@]} -eq 0 ]; then
+if [ -z "$commands" ]; then
     echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND ... $ARGSORERROR_EXEC_END"
     echo
     printUsage "$0"
@@ -105,6 +106,6 @@ elif [ "$isFailIfEmpty" ] && isEmptyArguments "$@"; then
 fi >&2
 
 printf -v quotedArgs '%q ' "$@"; quotedArgs="${quotedArgs% }"
-typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedArgs}")
-[ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedArgs")
-eval "${interpolatedCommands[@]}"
+interpolatedCommands="${commands//"$argMarker"/$quotedArgs}"
+[ "$interpolatedCommands" = "$commands" ] && interpolatedCommands+=" $quotedArgs"
+eval "$interpolatedCommands"

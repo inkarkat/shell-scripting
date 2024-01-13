@@ -2,6 +2,7 @@
 set -o noglob
 shopt -qs extglob
 
+: ${COMMANDONSELECTED_COMMAND_JOINER=;}
 : ${COMMANDONSELECTED_ENTRIES_MARKER='{}'}
 entriesMarker="$COMMANDONSELECTED_ENTRIES_MARKER"; unset COMMANDONSELECTED_ENTRIES_MARKER
 : ${COMMANDONSELECTED_FILTER_MARKER='{}'}
@@ -137,7 +138,7 @@ printIfDefined()
 isAcceptSingle=
 isMultiSelect=t
 isStdin=
-typeset -a targetCommands=()
+targetCommands=
 generator=
 unset filter
 postFilter=
@@ -159,7 +160,7 @@ do
 	--generator|-g)	    shift; generator="$1"; shift;;
 	--filter|-f)	    shift; filter="$1"; shift;;
 	--post-filter)	    shift; postFilter="$1"; shift;;
-	--command|-c)	    shift; targetCommands+=(${targetCommands:+;} "$1"); shift;;
+	--command|-c)	    shift; targetCommands+="${targetCommands:+ $COMMANDONSELECTED_COMMAND_JOINER }$1"; shift;;
 	--allow-literal-match)
 			    shift; matchFunction=selectByMatch;;
 	--allow-glob-match) shift; matchFunction=selectByGlob;;
@@ -550,11 +551,11 @@ elif [ -n "$selectionMessage" ] || [ "$isInteractiveSelection" -a -n "$interacti
 fi
 
 typeset -a e=("${selectedEntries[@]}")
-if [ ${#targetCommands[@]} -gt 0 ]; then
-    typeset -a interpolatedCommands=("${targetCommands[@]//"$entriesMarker"/'"${selectedEntries[@]}"'}")
-    [ "${interpolatedCommands[*]}" = "${targetCommands[*]}" ] || e=()
+if [ -n "$targetCommands" ]; then
+    interpolatedCommands="${targetCommands//"$entriesMarker"/'"${selectedEntries[@]}"'}"
+    [ "$interpolatedCommands" = "$targetCommands" ] || e=()
 else
-    typeset -a interpolatedCommands=("printf '%s\\n'")
+    interpolatedCommands="printf '%s\\n'"
 fi
 
-eval "${interpolatedCommands[@]}" '"${e[@]}"'
+eval "$interpolatedCommands" '"${e[@]}"'

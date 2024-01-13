@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${PLACEHOLDERARGUMENTS_COMMAND_JOINER=;}
 : ${PLACEHOLDERARGUMENTS_EXEC_END=;}
 : ${PLACEHOLDERARGUMENTS_ARG_MARKER:='{}'}
 argMarker="$PLACEHOLDERARGUMENTS_ARG_MARKER"; unset PLACEHOLDERARGUMENTS_ARG_MARKER
@@ -51,7 +52,7 @@ HELPTEXT
     printf 'Example: cat FILE [...] | xargs %s %q %s\n' "-d '\\n'" "$(basename "$1")" '--exec dump-args -v -- \[ {} \] \;'
 }
 
-typeset -a commands=()
+commands=
 commandArgumentNum=
 isRunWithEmptyArguments=t
 while [ $# -ne 0 ]
@@ -60,7 +61,7 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--no-run-if-empty|-r)
 			shift; isRunWithEmptyArguments=;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--command|-c)	shift; commands+="${commands:+ $PLACEHOLDERARGUMENTS_COMMAND_JOINER }$1"; shift;;
 	--exec)		shift
 			cmd=
 			while [ $# -gt 0 -a "$1" != "$PLACEHOLDERARGUMENTS_EXEC_END" ]
@@ -74,7 +75,7 @@ do
 			    exit 2
 			fi >&2
 			shift
-			commands+=(${commands:+;} "$cmd")
+			commands+="${commands:+ $PLACEHOLDERARGUMENTS_COMMAND_JOINER }$cmd"
 			;;
 	--command-arguments|-n)
 			shift; commandArgumentNum="$1"; shift;;
@@ -113,9 +114,9 @@ if [ ${#simpleCommand[@]} -gt 0 ]; then
     printf -v quotedSimpleCommand '%q ' "${simpleCommand[@]}"
     quotedSimpleCommand="${quotedSimpleCommand% }"
     printf -v escapedArgMarker %q "$argMarker"
-    commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    commands+="${commands:+ $PLACEHOLDERARGUMENTS_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 fi
-if [ ${#commands[@]} -eq 0 ]; then
+if [ -z "$commands" ]; then
     echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] ${PLACEHOLDERARGUMENTS_EXEC_END} or SIMPLECOMMAND."
     echo
     printUsage "$0"
@@ -126,6 +127,6 @@ fi >&2
 
 
 quotedArgs=''; [ $# -gt 0 ] && printf -v quotedArgs '%q ' "$@"; quotedArgs="${quotedArgs% }"
-typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$quotedArgs}")
-[ "${interpolatedCommands[*]}" = "${commands[*]}" ] && interpolatedCommands+=("$quotedArgs")
-eval "${interpolatedCommands[@]}"
+interpolatedCommands="${commands//"$argMarker"/$quotedArgs}"
+[ "$interpolatedCommands" = "$commands" ] && interpolatedCommands+=" $quotedArgs"
+eval "$interpolatedCommands"

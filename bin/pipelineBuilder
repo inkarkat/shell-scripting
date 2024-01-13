@@ -2,6 +2,7 @@
 set -o pipefail
 
 : ${PAGER:=less}
+: ${PIPELINEBUILDER_COMMAND_JOINER=|}
 : ${PIPELINEBUILDER_EXEC_END=;}
 
 printShortUsage()
@@ -47,15 +48,15 @@ HELPTEXT
 addCommand()
 {
     if [ "$isReverse" ]; then
-	commands=("$1" ${commands:+|} "${commands[@]}")
+	commands="${1}${commands:+ $PIPELINEBUILDER_COMMAND_JOINER }${commands}"
     else
-	commands+=(${commands:+|} "$1")
+	commands+="${commands:+ $PIPELINEBUILDER_COMMAND_JOINER }$1"
     fi
 }
 
 typeset pager=()
 isReverse=
-typeset -a commands=()
+commands=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -92,11 +93,11 @@ if [ $# -ne 0 ]; then
     printf -v quotedSimpleCommand '%q ' "$@"
     addCommand "${quotedSimpleCommand% }"
 fi
-if [ ${#commands[@]} -eq 0 ]; then
+if [ -z "$commands" ]; then
     echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2
 fi >&2
 
-eval "${commands[@]}" "${pager:+|}" '"${pager[@]}"'
+eval "$commands" "${pager:+|}" '"${pager[@]}"'

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${WITHCONCATENATEDINPUT_COMMAND_JOINER=;}
 baseDir="${TMPDIR:-/tmp}"
 
 printShortUsage()
@@ -49,7 +50,7 @@ HELPTEXT
 id=
 truncateStatus=
 truncateComparison=-eq
-typeset -a commands=()
+commands=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -77,7 +78,7 @@ do
 			shift; truncateComparison=-eq; truncateStatus=0;;
 	--truncate-on|-X)
 			shift; truncateStatus="$1"; shift;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--command|-c)	shift; commands+="${commands:+ $WITHCONCATENATEDINPUT_COMMAND_JOINER }$1"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -87,17 +88,17 @@ if [ $# -ne 0 ]; then
     # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
     # undo the effects of eval.
     printf -v quotedSimpleCommand '%q ' "$@"
-    commands+=(${commands:+;} "${quotedSimpleCommand% }")
+    commands+="${commands:+ $WITHCONCATENATEDINPUT_COMMAND_JOINER }${quotedSimpleCommand% }"
 fi
 
 if [ -z "$id" ]; then
-    if [ ${#commands[@]} -eq 0 ]; then
+    if [ -z "$commands" ]; then
 	echo 'ERROR: Need to specify -i|--id ID when no COMMAND(s) are passed.'
 	echo
 	printUsage "$0"
 	exit 2
     fi >&2
-    id="$(stringAsFilename "${commands[*]}")" || exit $?
+    id="$(stringAsFilename "$commands")" || exit $?
 fi
 
 storeDir="${baseDir}/withConcatenatedInput"
@@ -113,7 +114,7 @@ recallAndAppendInput()
 execute()
 {
     local status
-    eval "${commands[@]}"; status=$?
+    eval "$commands"; status=$?
 
     [ -n "$truncateStatus" ] || return
     [ "$status" $truncateComparison $truncateStatus ] && rm --force -- "$storedInputFilespec"
@@ -121,5 +122,5 @@ execute()
     return $status
 }
 
-hasCommands=t; [ ${#commands[@]} -eq 0 ] && hasCommands=
+hasCommands=t; [ -z "$commands" ] && hasCommands=
 eval 'recallAndAppendInput' "${hasCommands:+| execute}"

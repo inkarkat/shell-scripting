@@ -1,6 +1,7 @@
 #!/bin/bash
 set -o pipefail
 
+: ${ARGSTOLINES_COMMAND_JOINER=|}
 : ${ARGSTOLINES_ARGS_MARKER='{}'}
 argsMarker="$ARGSTOLINES_ARGS_MARKER"; unset ARGSTOLINES_ARGS_MARKER
 
@@ -43,7 +44,7 @@ HELPDESCRIPTION
 HELPTEXT
 }
 
-typeset -a targetCommands=()
+targetCommands=
 isCommandTakesEmpty=
 emptyCommand=
 sinkCommand=
@@ -51,7 +52,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
-	--command|-c)	shift; targetCommands+=(${targetCommands:+|} "$1"); shift;;
+	--command|-c)	shift; targetCommands+="${targetCommands:+ $ARGSTOLINES_COMMAND_JOINER }$1"; shift;;
 	--command-takes-empty|-E)
 			shift; isCommandTakesEmpty=t;;
 	--empty-command|-e)
@@ -88,9 +89,9 @@ linesToSink()
 }
 
 if [ $# -gt 0 ]; then
-    eval "printf '%s\n'" '"$@"' "${targetCommands:+|}" "${targetCommands[@]}" "${sinkCommand:+| linesToSink}"
-elif [ "$isCommandTakesEmpty" ] && [ ${#targetCommands[@]} -gt 0 ]; then
-    printf '' | eval "${targetCommands[@]}" "${sinkCommand:+| linesToSink}"
+    eval "printf '%s\n'" '"$@"' "${targetCommands:+|}" "${targetCommands}" "${sinkCommand:+| linesToSink}"
+elif [ "$isCommandTakesEmpty" ] && [ -n "$targetCommands" ]; then
+    printf '' | eval "$targetCommands" "${sinkCommand:+| linesToSink}"
 elif [ "$emptyCommand" ]; then
     eval "$emptyCommand" "${sinkCommand:+| linesToSink}"
 fi

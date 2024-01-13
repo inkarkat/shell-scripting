@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${SUCCEEDSORRETRYARG_COMMAND_JOINER=;}
 : ${SUCCEEDSORRETRYARG_EXEC_END=;}
 : ${SUCCEEDSORRETRYARG_ARG_MARKER='{}'}
 argMarker="$SUCCEEDSORRETRYARG_ARG_MARKER"; unset SUCCEEDSORRETRYARG_ARG_MARKER
@@ -55,8 +56,8 @@ HELPTEXT
 }
 
 failureFrom=retry
-typeset -a commands=()
-typeset -a retryCommands=()
+commands=
+retryCommands=
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -66,7 +67,7 @@ do
 	--either-failure)
 			shift; failureFrom=either;;
 	--retry-command|-r)
-			shift; retryCommands+=(${retryCommands:+;} "$1"); shift;;
+			shift; retryCommands+="${retryCommands:+ $SUCCEEDSORRETRYARG_COMMAND_JOINER }$1"; shift;;
 	--retry-exec)	shift
 			cmd=
 			printf -v escapedArgMarker %q "$argMarker"
@@ -81,7 +82,7 @@ do
 			    exit 2
 			fi >&2
 			shift
-			retryCommands+=(${retryCommands:+;} "$cmd")
+			retryCommands+="${retryCommands:+ $SUCCEEDSORRETRYARG_COMMAND_JOINER }${cmd}"
 			;;
 	--exec)		shift
 			cmd=
@@ -97,9 +98,9 @@ do
 			    exit 2
 			fi >&2
 			shift
-			commands+=(${commands:+;} "$cmd")
+			commands+="${commands:+ $SUCCEEDSORRETRYARG_COMMAND_JOINER }${cmd}"
 			;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--command|-c)	shift; commands+="${commands:+ $SUCCEEDSORRETRYARG_COMMAND_JOINER }$1"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -118,30 +119,30 @@ if [ $# -ne 0 ]; then
     # undo the effects of eval.
     printf -v quotedSimpleCommand '%q ' "$@"
     printf -v escapedArgMarker %q "$argMarker"
-    commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    commands+="${commands:+ $SUCCEEDSORRETRYARG_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 fi
-if [ ${#commands[@]} -eq 0 ]; then
+if [ -z "$commands" ]; then
     echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $SUCCEEDSORRETRYARG_EXEC_END or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2
 fi >&2
-[ ${#retryCommands[@]} -gt 0 ] || retryCommands=('printf %s\\n')
+[ -n "$retryCommands" ] || retryCommands='printf %s\\n'
 
 originalArg="$arg"
 typeset -a a=("$arg")
 printf -v arg '%q' "$arg"
-typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$arg}")
-[ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+interpolatedCommands="${commands//"$argMarker"/$arg}"
+[ "$interpolatedCommands" = "$commands" ] || a=()
 
-eval "${interpolatedCommands[@]}" '"${a[@]}"' || {
+eval "$interpolatedCommands" '"${a[@]}"' || {
     status=$?
 
     typeset -a o=("$originalArg")
     printf -v originalArg '%q' "$originalArg"
-    typeset -a interpolatedCommands=("${retryCommands[@]//"$argMarker"/$originalArg}")
-    [ "${interpolatedCommands[*]}" = "${retryCommands[*]}" ] || o=()
-    eval "${interpolatedCommands[@]}" '"${o[@]}"'
+    interpolatedCommands="${retryCommands//"$argMarker"/$originalArg}"
+    [ "$interpolatedCommands" = "$retryCommands" ] || o=()
+    eval "$interpolatedCommands" '"${o[@]}"'
     retryStatus=$?
 
     case "$failureFrom" in

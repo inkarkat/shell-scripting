@@ -1,5 +1,6 @@
 #!/bin/bash
 
+: ${LINESTOARG_COMMAND_JOINER=;}
 : ${LINESTOARG_LINE_WHAT=line}
 : ${LINESTOARG_ARG_MARKER='{}'}
 argMarker="$LINESTOARG_ARG_MARKER"; unset LINESTOARG_ARG_MARKER
@@ -66,7 +67,7 @@ HELPTEXT
 progressSink=
 with=
 isRunIfEmpty=
-typeset -a commands=()
+commands=
 betweenCommand=
 typeset -a runWithPromptArgs=()
 while [ $# -ne 0 ]
@@ -75,7 +76,7 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--command|-c)	shift; commands+="${commands:+ $LINESTOARG_COMMAND_JOINER }$1"; shift;;
 	--progress)	shift; progressSink="$1"; shift;;
 	--with-header)	shift; with=header;;
 	--with-prompt)	shift; with=runWithPrompt;;
@@ -97,9 +98,9 @@ if [ $# -ne 0 ]; then
     # undo the effects of eval.
     printf -v quotedSimpleCommand '%q ' "$@"
     printf -v escapedArgMarker %q "$argMarker"
-    commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    commands+="${commands:+ $LINESTOARG_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 fi
-if [ ${#commands[@]} -eq 0 ]; then
+if [ -z "$commands" ]; then
     echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
     echo
     printUsage "$0"
@@ -146,11 +147,11 @@ case "$with" in
 	    reportProgress "$line"
 
 	    printf -v line '%q' "$line"
-	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
+	    interpolatedCommands="${commands//"$argMarker"/$line}"
 	    typeset -a a=("$line")   # Need to use quoted line here.
-	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+	    [ "$interpolatedCommands" = "$commands" ] || a=()
 
-	    printf '%s ' "${interpolatedCommands[@]}" "${a[@]}"
+	    printf '%s ' "$interpolatedCommands" "${a[@]}"
 	    printf '\n'
 	    isFirst=
 	done | ${with:?} "${runWithPromptArgs[@]}"
@@ -171,10 +172,10 @@ case "$with" in
 
 	    typeset -a a=("$line")   # No quoting, as array provides separation.
 	    printf -v line '%q' "$line"
-	    typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$line}")
-	    [ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
+	    interpolatedCommands="${commands//"$argMarker"/$line}"
+	    [ "$interpolatedCommands" = "$commands" ] || a=()
 
-	    eval "${interpolatedCommands[@]}" '"${a[@]}"' \
+	    eval "$interpolatedCommands" '"${a[@]}"' \
 		|| { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    isFirst=
 	done

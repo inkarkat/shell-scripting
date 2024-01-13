@@ -2,6 +2,7 @@
 
 : ${INPUTTOARG_ARG_MARKER='{}'}
 argMarker="$INPUTTOARG_ARG_MARKER"; unset INPUTTOARG_ARG_MARKER
+: ${INPUTTOARG_COMMAND_JOINER=;}
 
 printShortUsage()
 {
@@ -37,14 +38,14 @@ HELPTEXT
 }
 
 isRunIfEmpty=
-typeset -a commands=()
+commands=
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
-	--command|-c)	shift; commands+=(${commands:+;} "$1"); shift;;
+	--command|-c)	shift; commands+="${commands:+ $INPUTTOARG_COMMAND_JOINER }$1"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -55,9 +56,9 @@ if [ $# -ne 0 ]; then
     # undo the effects of eval.
     printf -v quotedSimpleCommand '%q ' "$@"
     printf -v escapedArgMarker %q "$argMarker"
-    commands+=(${commands:+;} "${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}")	# %q escapes {}, we don't want that to have it interpolated later.
+    commands+="${commands:+ $INPUTTOARG_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 fi
-if [ ${#commands[@]} -eq 0 ]; then
+if [ -z "$commands" ]; then
     echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
     echo
     printUsage "$0"
@@ -71,6 +72,6 @@ input="$(</dev/stdin)"
 
 typeset -a a=("$input")
 printf -v input '%q' "$input"
-typeset -a interpolatedCommands=("${commands[@]//"$argMarker"/$input}")
-[ "${interpolatedCommands[*]}" = "${commands[*]}" ] || a=()
-eval "${interpolatedCommands[@]}" '"${a[@]}"'
+interpolatedCommands="${commands//"$argMarker"/$input}"
+[ "$interpolatedCommands" = "$commands" ] || a=()
+eval "$interpolatedCommands" '"${a[@]}"'
