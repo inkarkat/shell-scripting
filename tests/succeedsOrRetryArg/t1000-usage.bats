@@ -10,7 +10,7 @@
 @test "no commands prints message and usage instructions" {
     run succeedsOrRetryArg arg
     [ $status -eq 2 ]
-    [ "${lines[0]}" = 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ;, or SIMPLECOMMAND.' ]
+    [ "${lines[0]}" = 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or --exec SIMPLECOMMAND [...] ; or SIMPLECOMMAND.' ]
     [ "${lines[1]%% *}" = 'Usage:' ]
 }
 
