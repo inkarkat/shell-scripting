@@ -7,7 +7,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-i|--input-buffered [-s|--sequential]|-o|--output-buffered] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] --exec SIMPLECOMMAND [...] $YTEE_EXEC_END [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-i|--input-buffered [-s|--sequential]|-o|--output-buffered] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] $YTEE_EXEC_END [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
