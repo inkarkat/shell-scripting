@@ -4,6 +4,11 @@ eval "$(runWithPrompt --addAliasSupport augmentLines \
     '' \
     'between-command|progress'
 )"
+
+addAliasSupport commandline \
+    'p' \
+    'piped|and|or'
+
 addAliasSupport inputToArg \
     'r' \
     'run-if-empty'
