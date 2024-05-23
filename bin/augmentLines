@@ -1,6 +1,7 @@
 #!/bin/bash
 
 : ${AUGMENTLINES_COMMAND_JOINER=;}
+: ${AUGMENTLINES_EXEC_END=;}
 : ${AUGMENTLINES_SEPARATOR=$'\t'}
 : ${AUGMENTLINES_ARG_MARKER='{}'}
 argMarker="$AUGMENTLINES_ARG_MARKER"; unset AUGMENTLINES_ARG_MARKER
@@ -11,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-p|--prepend] [-1|--stdout|-2|--stderr] [-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" "[--with-header|--with-prompt $(runWithPrompt --get-short-usage 2>/dev/null)] [--between-command BETWEEN-COMMAND] -c|--command \"COMMANDLINE\" [...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-p|--prepend] [-1|--stdout|-2|--stderr] [-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" "[--with-header|--with-prompt $(runWithPrompt --get-short-usage 2>/dev/null)] [--between-command BETWEEN-COMMAND] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND [...] ${AUGMENTLINES_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -42,6 +43,10 @@ HELPDESCRIPTION
     --command|-c CMD	The command line to be executed. When this is a simple
 			command, it can also be passed as such. Read arguments
 			are appended${argMarker:+ or replace the string $argMarker}.${hasProgressNotification:+
+    --exec CMD [...] ${AUGMENTLINES_EXEC_END}	Execute CMD; all following arguments are taken to be
+			arguments to the CMD until an argument consisting of
+			'${AUGMENTLINES_EXEC_END}' is encountered. Read arguments ${argMarker:+either }are appended
+			${argMarker:+or replace any $argMarker marker} inside COMMANDLINE.
     --progress SINK	Report the current line through one of the SINKs of the
 			progressNotification command.}
     --with-header	Print a header (containing the current line) before each
@@ -86,6 +91,22 @@ do
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
 	--command|-c)	shift; commands+="${commands:+ $AUGMENTLINES_COMMAND_JOINER }$1"; shift;;
+	--exec)		shift
+			cmd=
+			printf -v escapedFileMarker %q "$argMarker"
+			while [ $# -gt 0 -a "$1" != "$AUGMENTLINES_EXEC_END" ]
+			do
+			    printf -v quotedArg %q "$1"
+			    cmd+="${cmd:+ }${quotedArg//"$escapedFileMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --exec command must be concluded with '${AUGMENTLINES_EXEC_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+="${commands:+ $AUGMENTLINES_COMMAND_JOINER }${cmd}"
+			;;
 	--progress)	shift; progressSink="$1"; shift;;
 	--with-header)	shift; with=header;;
 	--with-prompt)	shift; with=runWithPrompt;;
@@ -110,7 +131,7 @@ if [ $# -ne 0 ]; then
     commands+="${commands:+ $AUGMENTLINES_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 fi
 if [ -z "$commands" ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $AUGMENTLINES_EXEC_END or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2
