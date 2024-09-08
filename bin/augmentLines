@@ -143,15 +143,7 @@ elif [ ${#runWithPromptArgs[@]} -gt 0 -a "$with" = 'header' ]; then
 fi >&2
 
 if [ "$hasProgressNotification" ] && [ -n "$progressSink" ]; then
-    exec 3> >(progressNotification --to "$progressSink" ${LINESTOARG_LINE_WHAT:+--prepend-count "${LINESTOARG_LINE_WHAT}"} 2>/dev/null)
-
-    reportProgress()
-    {
-	trap 'reportProgress() { :; }; trap PIPE' PIPE
-	printf '%s\n' "$*" >&3 2>/dev/null  # Silence "printf: write error: Broken pipe"
-    }
-else
-    reportProgress() { :; }
+    typeset -a progressNotificationCommand=(progressNotification --to "$progressSink" ${LINESTOARG_LINE_WHAT:+--prepend-count "${LINESTOARG_LINE_WHAT}"})
 fi
 
 execute()
@@ -169,37 +161,54 @@ isHeader=
 case "$with" in
     runWith*)
 	[ ${#runWithPromptArgs[@]} -eq 0 ] && runWithPromptArgs=(--worst-status)
-	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
-	do
-	    originalLine="$line"
-	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
-		if [ "${betweenCommand:$((${#betweenCommand} - 1))}" = ';' ]; then
-		    printf '%s ' "$betweenCommand"  # Prepend the BETWEEN-COMMAND to the next line's execution (so there's no separate prompt) if it ends with a semicolon. Its exit status is then ignored.
-		else
-		    printf '%s\n' "$betweenCommand" # Use a separate prompt (and with it consider its exit status).
+	{
+	    printf ' exec 4> >('
+	    printf '%q ' "${progressNotificationCommand[@]}"
+	    printf '2>/dev/null); reportProgress() { trap "reportProgress() { :; }; trap PIPE" PIPE; printf %%s\\\\n "$*" >&4 2>/dev/null; }\n'
+
+	    while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
+	    do
+		originalLine="$line"
+		if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
+		    if [ "${betweenCommand:$((${#betweenCommand} - 1))}" = ';' ]; then
+			printf '%s ' "$betweenCommand"  # Prepend the BETWEEN-COMMAND to the next line's execution (so there's no separate prompt) if it ends with a semicolon. Its exit status is then ignored.
+		    else
+			printf '%s\n' "$betweenCommand" # Use a separate prompt (and with it consider its exit status).
+		    fi
 		fi
-	    fi
 
-	    reportProgress "$line"
+		printf ' reportProgress %q || :\n' "$line"
 
-	    printf -v line '%q' "$line"
-	    interpolatedCommands="${commands//"$argMarker"/$line}"
-	    typeset -a a=("$line")   # Need to use quoted line here.
-	    [ "$interpolatedCommands" = "$commands" ] || a=()
+		printf -v line '%q' "$line"
+		interpolatedCommands="${commands//"$argMarker"/$line}"
+		typeset -a a=("$line")   # Need to use quoted line here.
+		[ "$interpolatedCommands" = "$commands" ] || a=()
 
-	    printf -v completeCommand '%s ' "$interpolatedCommands" "${a[@]}"
+		printf -v completeCommand '%s ' "$interpolatedCommands" "${a[@]}"
 
-	    if [ "$isAppend" ]; then
-		printf 'printf %%s%%s%%s\\\\n %q %q $(%s %s) %s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "${completeCommand% }" "$redirPrefix" "$redirSuffix"
-	    else
-		printf 'printf %%s%%s%%s\\\\n $(%s %s) %q %q %s\n' "${completeCommand% }" "$redirPrefix" "$AUGMENTLINES_SEPARATOR" "$originalLine" "$redirSuffix"
-	    fi
-	    isFirst=
-	done | ${with:?} "${runWithPromptArgs[@]}"
+		if [ "$isAppend" ]; then
+		    printf 'printf %%s%%s%%s\\\\n %q %q $(%s %s) %s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "${completeCommand% }" "$redirPrefix" "$redirSuffix"
+		else
+		    printf 'printf %%s%%s%%s\\\\n $(%s %s) %q %q %s\n' "${completeCommand% }" "$redirPrefix" "$AUGMENTLINES_SEPARATOR" "$originalLine" "$redirSuffix"
+		fi
+		isFirst=
+	    done
+	} | ${with:?} "${runWithPromptArgs[@]}"
 	;;
     header)
 	isHeader=t;&
     '')
+	if [ "$hasProgressNotification" ] && [ -n "$progressSink" ]; then
+	    exec 4> >("${progressNotificationCommand[@]}" 2>/dev/null)
+	    reportProgress()
+	    {
+		trap 'reportProgress() { :; }; trap PIPE' PIPE
+		printf '%s\n' "$*" >&4 2>/dev/null  # Silence "printf: write error: Broken pipe"
+	    }
+	else
+	    reportProgress() { :; }
+	fi
+
 	status=0
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
