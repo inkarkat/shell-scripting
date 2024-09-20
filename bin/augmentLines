@@ -69,7 +69,7 @@ runWith[Prompt] argument, --worst-status needs to be explicitly passed.
 
 Example:
 HELPTEXT
-    printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'time -f %E curl -s -o /dev/null'
+    printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'command time -f %E curl -s -o /dev/null'
 }
 
 isAppend=t
