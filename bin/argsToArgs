@@ -82,10 +82,9 @@ argsToSink()
 	quotedArgs+="${quotedArgs:+ }${arg}"
     done
 
-    typeset -a a=("${args[@]}")
     local interpolatedCommand="${sinkCommand//"$argsMarker"/$quotedArgs}"
-    [ "$interpolatedCommand" = "$sinkCommand" ] || a=()
-    eval "$interpolatedCommand" '"${a[@]}"'
+    [ "$interpolatedCommand" = "$sinkCommand" ] || quotedArgs=''
+    eval "$interpolatedCommand" "$quotedArgs"
 }
 
 if [ $# -gt 0 ]; then

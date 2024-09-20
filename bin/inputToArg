@@ -70,8 +70,7 @@ input="$(</dev/stdin)"
 [ -z "$input" ] && [ ! "$isRunIfEmpty" ] && exit 0
 
 
-typeset -a a=("$input")
-printf -v input '%q' "$input"
-interpolatedCommands="${commands//"$argMarker"/$input}"
-[ "$interpolatedCommands" = "$commands" ] || a=()
-eval "$interpolatedCommands" '"${a[@]}"'
+printf -v quotedInput '%q' "$input"
+interpolatedCommands="${commands//"$argMarker"/$quotedInput}"
+[ "$interpolatedCommands" = "$commands" ] || quotedInput=''
+eval "$interpolatedCommands" "$quotedInput"

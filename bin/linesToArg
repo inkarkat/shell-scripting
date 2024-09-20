@@ -143,9 +143,9 @@ case "$with" in
 
 		printf ' reportProgress %q || :\n' "$line"
 
-		printf -v line '%q' "$line"
-		interpolatedCommands="${commands//"$argMarker"/$line}"
-		typeset -a a=("$line")   # Need to use quoted line here.
+		printf -v quotedLine '%q' "$line"
+		interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
+		typeset -a a=("$quotedLine")   # Need to use quoted line here.
 		[ "$interpolatedCommands" = "$commands" ] || a=()
 
 		printf '%s ' "$interpolatedCommands" "${a[@]}"
@@ -179,12 +179,11 @@ case "$with" in
 
 	    reportProgress "$line"
 
-	    typeset -a a=("$line")   # No quoting, as array provides separation.
-	    printf -v line '%q' "$line"
-	    interpolatedCommands="${commands//"$argMarker"/$line}"
-	    [ "$interpolatedCommands" = "$commands" ] || a=()
+	    printf -v quotedLine '%q' "$line"
+	    interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
+	    [ "$interpolatedCommands" = "$commands" ] || quotedLine=''
 
-	    eval "$interpolatedCommands" '"${a[@]}"' \
+	    eval "$interpolatedCommands" "$quotedLine" \
 		|| { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    isFirst=
 	done

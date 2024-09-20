@@ -146,10 +146,6 @@ if [ "$hasProgressNotification" ] && [ -n "$progressSink" ]; then
     typeset -a progressNotificationCommand=(progressNotification --to "$progressSink" ${LINESTOARG_LINE_WHAT:+--prepend-count "${LINESTOARG_LINE_WHAT}"})
 fi
 
-execute()
-{
-    eval "$interpolatedCommands" '"${a[@]}"'
-}
 
 setStatus()
 {
@@ -179,9 +175,9 @@ case "$with" in
 
 		printf ' reportProgress %q || :\n' "$line"
 
-		printf -v line '%q' "$line"
-		interpolatedCommands="${commands//"$argMarker"/$line}"
-		typeset -a a=("$line")   # Need to use quoted line here.
+		printf -v quotedLine '%q' "$line"
+		interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
+		typeset -a a=("$quotedLine")   # Need to use quoted line here.
 		[ "$interpolatedCommands" = "$commands" ] || a=()
 
 		printf -v completeCommand '%s ' "$interpolatedCommands" "${a[@]}"
@@ -221,12 +217,11 @@ case "$with" in
 
 	    reportProgress "$line"
 
-	    typeset -a a=("$line")   # No quoting, as array provides separation.
-	    printf -v line '%q' "$line"
-	    interpolatedCommands="${commands//"$argMarker"/$line}"
-	    [ "$interpolatedCommands" = "$commands" ] || a=()
+	    printf -v quotedLine '%q' "$line"
+	    interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
+	    [ "$interpolatedCommands" = "$commands" ] || quotedLine=''
 
-	    eval "commandOutput=\"\$(execute ${redirPrefix})\" ${redirSuffix}" \
+	    eval "commandOutput=\"\$($interpolatedCommands $quotedLine ${redirPrefix})\" ${redirSuffix}" \
 		|| { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    isFirst=
 

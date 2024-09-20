@@ -129,20 +129,17 @@ if [ -z "$commands" ]; then
 fi >&2
 [ -n "$retryCommands" ] || retryCommands='printf %s\\n'
 
-originalArg="$arg"
-typeset -a a=("$arg")
-printf -v arg '%q' "$arg"
-interpolatedCommands="${commands//"$argMarker"/$arg}"
-[ "$interpolatedCommands" = "$commands" ] || a=()
+printf -v quotedArg '%q' "$arg"
+interpolatedCommands="${commands//"$argMarker"/$quotedArg}"
+[ "$interpolatedCommands" = "$commands" ] || quotedArg=''
 
-eval "$interpolatedCommands" '"${a[@]}"' || {
+eval "$interpolatedCommands" "$quotedArg" || {
     status=$?
 
-    typeset -a o=("$originalArg")
-    printf -v originalArg '%q' "$originalArg"
-    interpolatedCommands="${retryCommands//"$argMarker"/$originalArg}"
-    [ "$interpolatedCommands" = "$retryCommands" ] || o=()
-    eval "$interpolatedCommands" '"${o[@]}"'
+    printf -v quotedArg '%q' "$arg"
+    interpolatedCommands="${retryCommands//"$argMarker"/$quotedArg}"
+    [ "$interpolatedCommands" = "$retryCommands" ] || quotedArg=''
+    eval "$interpolatedCommands" "$quotedArg"
     retryStatus=$?
 
     case "$failureFrom" in
