@@ -173,6 +173,7 @@ if [ ${#usedMarkers[@]} -eq 0 ]; then
     exit $?
 fi
 
+resultTempFile=
 interpolatedCommands="$commands"
 for marker in "${!usedMarkers[@]}"
 do
@@ -191,9 +192,11 @@ do
 	    [ $((-1 * marker)) -gt ${#lines[@]} ] \
 		&& printf -v replacement %q '' \
 		|| printf -v replacement %q "${lines[$marker]}";;
-	F)  resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
-	    tempFiles+=("$resultTempFile")
-	    printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
+	F)  if [ -z "$resultTempFile" ]; then
+		resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+		tempFiles+=("$resultTempFile")
+		printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
+	    fi
 	    printf -v replacement %q "$resultTempFile"
 	    ;;
 	*)  printf >&2 'ASSERT: Unhandled marker: %s\n' "$marker"; exit 3;;
