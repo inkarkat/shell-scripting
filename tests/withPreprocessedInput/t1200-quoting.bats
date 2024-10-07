@@ -21,3 +21,20 @@ see' \;
 see
 foo' ]
 }
+
+@test "commandlines with empty argument are properly quoted" {
+    runWithInput 'foo' withPreprocessedInput --preprocess-command "cat >/dev/null; echo one '' three" --command "cat; echo ONE '' THREE"
+    [ $status -eq 0 ]
+    [ "$output" = 'one  three
+foo
+ONE  THREE' ]
+}
+
+@test "exec commands with empty argument are properly quoted" {
+    WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER=';' WITHPREPROCESSEDINPUT_COMMAND_JOINER=';' \
+	runWithInput 'foo' withPreprocessedInput --preprocess-command 'cat >/dev/null' --preprocess-exec echo one '' three \; --exec cat \; -- echo ONE '' THREE
+    [ $status -eq 0 ]
+    [ "$output" = 'one  three
+foo
+ONE  THREE' ]
+}

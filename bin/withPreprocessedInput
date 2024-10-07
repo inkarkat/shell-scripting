@@ -76,6 +76,10 @@ quoteMarkers()
     local quoter="${1:?}"; shift
     quotedCmd=''
     local remainder="${1?}"; shift
+    if [ -z "$remainder" ]; then
+	printf -v quotedCmd "$quoter" "$remainder"
+	return
+    fi
     while [[ "$remainder" =~ ^(.*)"$argMS"(-?[0-9]+|[*@F])"$argME"(.*)$ ]]	# Note: This will be parsed back-to-front because of the greedy matching.
     do
 	printf -v quotedCmd "%s%s%s${quoter}%s" "$argMS" "${BASH_REMATCH[2]}" "$argME" "${BASH_REMATCH[3]}" "$quotedCmd"
