@@ -174,6 +174,11 @@ interpolatedCommands="$commands"
 for marker in "${!usedMarkers[@]}"
 do
     case "$marker" in
+	\*) saveIFS="${IFS-$' \t\n'}"; IFS=$'\n'
+		printf -v replacement %q "${lines[*]}"
+	    IFS="$saveIFS"
+	    ;;
+	@)  printf -v replacement '%q ' "${lines[@]}"; replacement="${replacement% }";;
 	F)  resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
 	    tempFiles+=("$resultTempFile")
 	    printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
