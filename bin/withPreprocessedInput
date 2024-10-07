@@ -44,13 +44,15 @@ HELPDESCRIPTION
 			arguments to the CMD until an argument consisting of
 			'${WITHPREPROCESSEDINPUT_EXEC_END}' is encountered.
     --command|-c CMD	Execute CMD as a command-line, also feeding it the
-			original input. You can refer the preprocessed output
-			as ${argMarker/X/1}, ${argMarker/X/2}, etc. for individual captured lines, ${argMarker/X/*} for
-			the entire output, ${argMarker/X/@} for each line of the output as an
-			individual argument. ${argMarker/X/F} is replaced with another temp
-			file that contains the entire preprocessed output. If
-			none of those markers is used, the preprocessed output
-			is prepended to the original input fed into CMD.
+			original input.
+			You can refer the preprocessed output as ${argMarker/X/1}, ${argMarker/X/2}, etc.
+			for individual captured lines, ${argMarker/X/-1} for indexing from
+			behind, ${argMarker/X/*} for the entire output, ${argMarker/X/@} for each line of
+			the output as an individual argument. ${argMarker/X/F} is replaced
+			with another temp file that contains the entire
+			preprocessed output.
+			If none of those markers is used, the preprocessed
+			output is prepended to the original input fed into CMD.
     --exec CMD [...] ${WITHPREPROCESSEDINPUT_EXEC_END}	Execute CMD; all following arguments are taken to be
 			arguments to the CMD until an argument consisting of '${WITHPREPROCESSEDINPUT_EXEC_END}'
 			is encountered. Same feeding and marker replacement as
@@ -67,7 +69,7 @@ quoteMarkers()
     local quoter="${1:?}"; shift
     quotedCmd=''
     local remainder="${1?}"; shift
-    while [[ "$remainder" =~ ^(.*)"$argMS"([0-9]+|[*@F])"$argME"(.*)$ ]]	# Note: This will be parsed back-to-front because of the greedy matching.
+    while [[ "$remainder" =~ ^(.*)"$argMS"(-?[0-9]+|[*@F])"$argME"(.*)$ ]]	# Note: This will be parsed back-to-front because of the greedy matching.
     do
 	printf -v quotedCmd "%s%s%s${quoter}%s" "$argMS" "${BASH_REMATCH[2]}" "$argME" "${BASH_REMATCH[3]}" "$quotedCmd"
 	remainder="${BASH_REMATCH[1]}"
@@ -185,6 +187,10 @@ do
 		&& printf -v replacement %q '' \
 		|| printf -v replacement %q "${lines[$((marker - 1))]}"
 	    ;;
+	-+([0-9]))
+	    [ $((-1 * marker)) -gt ${#lines[@]} ] \
+		&& printf -v replacement %q '' \
+		|| printf -v replacement %q "${lines[$marker]}";;
 	F)  resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
 	    tempFiles+=("$resultTempFile")
 	    printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
