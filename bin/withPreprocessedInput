@@ -1,5 +1,6 @@
 #!/bin/bash
 set -o pipefail
+shopt -qs extglob
 
 : ${WITHPREPROCESSEDINPUT_COMMAND_JOINER=|}
 : ${WITHPREPROCESSEDINPUT_EXEC_END=;}
@@ -179,11 +180,17 @@ do
 	    IFS="$saveIFS"
 	    ;;
 	@)  printf -v replacement '%q ' "${lines[@]}"; replacement="${replacement% }";;
+	+([0-9]))
+	    [ $marker -eq 0 ] \
+		&& printf -v replacement %q '' \
+		|| printf -v replacement %q "${lines[$((marker - 1))]}"
+	    ;;
 	F)  resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
 	    tempFiles+=("$resultTempFile")
 	    printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
 	    printf -v replacement %q "$resultTempFile"
 	    ;;
+	*)  printf >&2 'ASSERT: Unhandled marker: %s\n' "$marker"; exit 3;;
     esac
     interpolatedCommands="${interpolatedCommands//"${argMS}${marker}${argME}"/${replacement}}"
 done
