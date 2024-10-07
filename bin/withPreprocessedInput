@@ -12,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "-P|--preprocess-exec SIMPLECOMMAND [...] ${WITHPREPROCESSEDINPUT_EXEC_END} [-P ...]|-p|--preprocess-command "COMMANDLINE" [-p ...] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...]${argMarker:+ [}${argMarker}${argMarker:+] [...]} ${WITHPREPROCESSEDINPUT_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-r|--run-if-empty] -P|--preprocess-exec SIMPLECOMMAND [...] ${WITHPREPROCESSEDINPUT_EXEC_END} [-P ...]|-p|--preprocess-command "COMMANDLINE" [-p ...] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...]${argMarker:+ [}${argMarker}${argMarker:+] [...]} ${WITHPREPROCESSEDINPUT_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -36,6 +36,9 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --run-if-empty|-r	Also run COMMANDs (without any supplied arguments or
+			prepended output) if the PREPROCESS-COMMAND(s) produced
+			no output.
     --preprocess-command|-p CMD
 			Execute CMD as a command-line, feeding it the input and
 			capturing its output.
@@ -59,6 +62,7 @@ HELPDESCRIPTION
 			with --command.
 EXIT STATUS:
     0	Complete success.
+    1	No preprocessed output and --run-if-empty not specified.
     2	Bad invocation, wrong or missing command-line arguments.
     *   any exit status from [PREPROCESS-]COMMAND(s)
 Example:
@@ -86,11 +90,14 @@ quoteMarkers()
 
 preprocessCommands=
 commands=
+isRunIfEmpty=
 typeset -A usedMarkers=()
 while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--run-if-empty|-r)
+			shift; isRunIfEmpty=t;;
 	--preprocess-command|-p)
 			shift; preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_COMMAND_JOINER }${1?}"; shift;;
 	--preprocess-exec|-P)
@@ -167,9 +174,11 @@ readarray -t lines < <(
 [ ${lines[-1]} -ne 0 ] && exit ${lines[-1]}
 unset 'lines[-1]'; [ -n "${lines[-1]}" ] || unset 'lines[-1]'
 
+[ ${#lines[@]} -eq 0 ] && [ ! "$isRunIfEmpty" ] && exit 1
+
 if [ ${#usedMarkers[@]} -eq 0 ]; then
     {
-	printf '%s\n' "${lines[@]}"
+	[ ${#lines[@]} -eq 0 ] || printf '%s\n' "${lines[@]}"
 	cat -- "$tempFilespec"
     } | eval "$commands"
     exit $?
@@ -184,7 +193,10 @@ do
 		printf -v replacement %q "${lines[*]}"
 	    IFS="$saveIFS"
 	    ;;
-	@)  printf -v replacement '%q ' "${lines[@]}"; replacement="${replacement% }";;
+	@)  [ ${#lines[@]} -eq 0 ] \
+		&& replacement='' \
+		|| printf -v replacement '%q ' "${lines[@]}"; replacement="${replacement% }"
+	    ;;
 	+([0-9]))
 	    [ $marker -eq 0 ] \
 		&& printf -v replacement %q '' \
@@ -195,9 +207,13 @@ do
 		&& printf -v replacement %q '' \
 		|| printf -v replacement %q "${lines[$marker]}";;
 	F)  if [ -z "$resultTempFile" ]; then
-		resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
-		tempFiles+=("$resultTempFile")
-		printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
+		if [ ${#lines[@]} -eq 0 ]; then
+		    resultTempFile=/dev/null	# Optimization: no need for a real file.
+		else
+		    resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+		    tempFiles+=("$resultTempFile")
+		    printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
+		fi
 	    fi
 	    printf -v replacement %q "$resultTempFile"
 	    ;;
