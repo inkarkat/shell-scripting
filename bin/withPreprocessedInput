@@ -151,7 +151,8 @@ elif [ -z "$commands" ]; then
 fi >&2
 
 tempFilespec="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
-[ "${DEBUG:-}" ] || trap 'rm -f -- "$tempFilespec" 2>/dev/null' EXIT
+typeset -a tempFiles=("$tempFilespec")
+[ "${DEBUG:-}" ] || trap 'rm -f -- "${tempFiles[@]}" 2>/dev/null' EXIT
 
 readarray -t lines < <(
     tee -- "$tempFilespec" \
@@ -169,6 +170,18 @@ if [ ${#usedMarkers[@]} -eq 0 ]; then
     exit $?
 fi
 
-#interpolatedCommands="${commands//"$argMarker"/$arg}"
-# Use "interpolated or append, scalar value into string" / "interpolated or append, array of values into eval'ed string"
-eval "$commands"
+interpolatedCommands="$commands"
+for marker in "${!usedMarkers[@]}"
+do
+    case "$marker" in
+	F)  resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+	    tempFiles+=("$resultTempFile")
+	    printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
+	    printf -v replacement %q "$resultTempFile"
+	    ;;
+    esac
+    interpolatedCommands="${interpolatedCommands//"${argMS}${marker}${argME}"/${replacement}}"
+done
+
+cat -- "$tempFilespec" \
+    | eval "$interpolatedCommands"
