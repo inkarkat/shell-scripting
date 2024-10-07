@@ -61,7 +61,9 @@ EXIT STATUS:
     0	Complete success.
     2	Bad invocation, wrong or missing command-line arguments.
     *   any exit status from [PREPROCESS-]COMMAND(s)
+Example:
 HELPTEXT
+    printf 'cat /etc/hosts | %q %s\n' "$(basename "$1")" "--preprocess-command 'wc -l' --exec sed = \\; -- sed -e 's#^[0-9]\\+\$#&/{*}#' -e N -e 's/\\n/: /'"
 }
 
 quoteMarkers()
