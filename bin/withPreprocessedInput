@@ -3,6 +3,7 @@ set -o pipefail
 shopt -qs extglob
 
 : ${WITHPREPROCESSEDINPUT_COMMAND_JOINER=|}
+: ${WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER=|}
 : ${WITHPREPROCESSEDINPUT_EXEC_END=;}
 : ${WITHPREPROCESSEDINPUT_ARG_MARKER='{X}'}
 argMarker="$WITHPREPROCESSEDINPUT_ARG_MARKER"; unset WITHPREPROCESSEDINPUT_ARG_MARKER
@@ -99,7 +100,7 @@ do
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
 	--preprocess-command|-p)
-			shift; preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_COMMAND_JOINER }${1?}"; shift;;
+			shift; preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER }${1?}"; shift;;
 	--preprocess-exec|-P)
 			shift
 			cmd=
@@ -114,7 +115,7 @@ do
 			    exit 2
 			fi >&2
 			shift
-			preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_COMMAND_JOINER }${cmd}"
+			preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER }${cmd}"
 			;;
 	--command|-c)	shift
 			quoteMarkers %s "$1"; shift
