@@ -1,0 +1,260 @@
+#!/bin/bash
+set -o pipefail
+shopt -qs extglob
+
+: ${WITHPREPROCESSEDINPUT_COMMAND_JOINER=|}
+: ${WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER=|}
+: ${WITHPREPROCESSEDINPUT_EXEC_END=;}
+: ${WITHPREPROCESSEDINPUT_ARG_MARKER='{X}'}
+argMarker="$WITHPREPROCESSEDINPUT_ARG_MARKER"; unset WITHPREPROCESSEDINPUT_ARG_MARKER
+argMS="${argMarker%X*}"; argME="${argMarker#*X}"
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, she can
+    # skim the long one.
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-r|--run-if-empty] [--parallel-preprocess] -P|--preprocess-exec SIMPLECOMMAND [...] ${WITHPREPROCESSEDINPUT_EXEC_END} [-P ...]|-p|--preprocess-command "COMMANDLINE" [-p ...] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...]${argMarker:+ [}${argMarker}${argMarker:+] [...]} ${WITHPREPROCESSEDINPUT_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Save input into a temp file, pipe it through PREPROCESS-COMMAND(s), and then
+${argMarker:+either }prepend that input to the original file ${argMarker:+or replace markers }in COMMAND(s)
+while piping the saved original input to it as well.
+This is useful when COMMAND needs some information from the input (like total
+number of lines) while processing that same input itself.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --run-if-empty|-r	Also run COMMANDs (without any supplied arguments or
+			prepended output) if the PREPROCESS-COMMAND(s) produced
+			no output.
+    --parallel-preprocess
+			Feed the input to the PREPROCESS-COMMAND(s) while still
+			reading the input. PREPROCESS-COMMAND(s) must fully
+			consume the input to avoid a SIGPIPE error.
+    --preprocess-command|-p CMD
+			Execute CMD as a command-line, feeding it the input and
+			capturing its output.
+    --preprocess-exec|-P CMD [...] ${WITHPREPROCESSEDINPUT_EXEC_END}
+			Execute CMD; all following arguments are taken to be
+			arguments to the CMD until an argument consisting of
+			'${WITHPREPROCESSEDINPUT_EXEC_END}' is encountered.
+    --command|-c CMD	Execute CMD as a command-line, also feeding it the
+			original input.
+			You can refer the preprocessed output as ${argMarker/X/1}, ${argMarker/X/2}, etc.
+			for individual captured lines, ${argMarker/X/-1} for indexing from
+			behind, ${argMarker/X/*} for the entire output, ${argMarker/X/@} for each line of
+			the output as an individual argument. ${argMarker/X/F} is replaced
+			with another temp file that contains the entire
+			preprocessed output.
+			If none of those markers is used, the preprocessed
+			output is prepended to the original input fed into CMD.
+    --exec CMD [...] ${WITHPREPROCESSEDINPUT_EXEC_END}	Execute CMD; all following arguments are taken to be
+			arguments to the CMD until an argument consisting of '${WITHPREPROCESSEDINPUT_EXEC_END}'
+			is encountered. Same feeding and marker replacement as
+			with --command.
+EXIT STATUS:
+    0	Complete success.
+    1	No preprocessed output and --run-if-empty not specified.
+    2	Bad invocation, wrong or missing command-line arguments.
+    3	Internal error or failed assertion.
+    141	PREPROCESS-COMMAND(s) did not fully consume the input when
+	--parallel-preprocess is given.
+    *   any exit status from [PREPROCESS-]COMMAND(s)
+Example:
+HELPTEXT
+    printf 'cat /etc/hosts | %q %s\n' "$(basename "$1")" "--preprocess-command 'wc -l' --exec sed = \\; -- sed -e 's#^[0-9]\\+\$#&/{*}#' -e N -e 's/\\n/: /'"
+}
+
+quoteMarkers()
+{
+    local quoter="${1:?}"; shift
+    quotedCmd=''
+    local remainder="${1?}"; shift
+    if [ -z "$remainder" ]; then
+	printf -v quotedCmd "$quoter" "$remainder"
+	return
+    fi
+    while [[ "$remainder" =~ ^(.*)"$argMS"(-?[0-9]+|[*@F])"$argME"(.*)$ ]]	# Note: This will be parsed back-to-front because of the greedy matching.
+    do
+	printf -v quotedCmd "%s%s%s${quoter}%s" "$argMS" "${BASH_REMATCH[2]}" "$argME" "${BASH_REMATCH[3]}" "$quotedCmd"
+	remainder="${BASH_REMATCH[1]}"
+	usedMarkers["${BASH_REMATCH[2]}"]=t
+    done
+    if [ -n "$remainder" ]; then
+	printf -v quotedCmd "${quoter}%s" "$remainder" "$quotedCmd"
+    fi
+    # Returns $quotedCmd; cannot use command substitution as we're collecting
+    # markers in usedMarkers.
+}
+
+captureAndPreprocess=captureThenPreprocess
+preprocessCommands=
+commands=
+isRunIfEmpty=
+typeset -A usedMarkers=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--run-if-empty|-r)
+			shift; isRunIfEmpty=t;;
+	--parallel-preprocess)
+			shift; captureAndPreprocess=captureWhilePreprocessing;;
+	--preprocess-command|-p)
+			shift; preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER }${1?}"; shift;;
+	--preprocess-exec|-P)
+			shift
+			cmd=
+			while [ $# -gt 0 -a "$1" != "$WITHPREPROCESSEDINPUT_EXEC_END" ]
+			do
+			    printf -v quotedCmd %q "$1"
+			    cmd+="${cmd:+ }${quotedCmd}"
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --preprocess-exec command must be concluded with '${WITHPREPROCESSEDINPUT_EXEC_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER }${cmd}"
+			;;
+	--command|-c)	shift
+			quoteMarkers %s "$1"; shift
+			commands+="${commands:+ $WITHPREPROCESSEDINPUT_COMMAND_JOINER }${quotedCmd}";;
+	--exec)		shift
+			cmd=
+			while [ $# -gt 0 -a "$1" != "$WITHPREPROCESSEDINPUT_EXEC_END" ]
+			do
+			    quoteMarkers %q "$1"
+			    cmd+="${cmd:+ }${quotedCmd}"
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --exec command must be concluded with '${WITHPREPROCESSEDINPUT_EXEC_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+="${commands:+ $WITHPREPROCESSEDINPUT_COMMAND_JOINER }${cmd}"
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+if [ $# -ne 0 ]; then
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    cmd=
+    while [ $# -gt 0 ]
+    do
+	quoteMarkers %q "$1"; shift
+	cmd+="${cmd:+ }${quotedCmd}"
+    done
+    commands+="${commands:+ $WITHPREPROCESSEDINPUT_COMMAND_JOINER }${cmd}"
+fi
+if [ -z "$preprocessCommands" ]; then
+    echo "ERROR: No PREPROCESS-COMMAND(s) specified; need to pass --preprocess-command \"COMMANDLINE\", or --preprocess-exec SIMPLECOMMAND [...] $WITHPREPROCESSEDINPUT_EXEC_END."
+    echo
+    printUsage "$0"
+    exit 2
+elif [ -z "$commands" ]; then
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $WITHPREPROCESSEDINPUT_EXEC_END or SIMPLECOMMAND."
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+
+tempFilespec="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+typeset -a tempFiles=("$tempFilespec")
+[ "${DEBUG:-}" ] || trap 'rm -f -- "${tempFiles[@]}" 2>/dev/null' EXIT
+
+
+captureThenPreprocess()
+{
+    cat > "$tempFilespec" || exit 3
+    readarray -t lines < <(
+	# Note: Suppressing [the SIGPIPE] error(s) from cat when $preprocessCommands
+	# does not consume all input.
+	{ cat -- "$tempFilespec" || :; } \
+	    | eval "$preprocessCommands"
+	printf '\n%d\n' "$?"
+    )	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+    [ ${lines[-1]} -ne 0 ] && exit ${lines[-1]}
+    unset 'lines[-1]'; [ -n "${lines[-1]}" ] || unset 'lines[-1]'
+}
+
+captureWhilePreprocessing()
+{
+    readarray -t lines < <(
+	tee -- "$tempFilespec" \
+	    | eval "$preprocessCommands"
+	printf '\n%d\n' "$?"
+    )	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+    [ ${lines[-1]} -ne 0 ] && exit ${lines[-1]}
+    unset 'lines[-1]'; [ -n "${lines[-1]}" ] || unset 'lines[-1]'
+}
+
+$captureAndPreprocess
+[ ${#lines[@]} -eq 0 ] && [ ! "$isRunIfEmpty" ] && exit 1
+
+if [ ${#usedMarkers[@]} -eq 0 ]; then
+    {
+	[ ${#lines[@]} -eq 0 ] || printf '%s\n' "${lines[@]}"
+	cat -- "$tempFilespec"
+    } | eval "$commands"
+    exit $?
+fi
+
+resultTempFile=
+interpolatedCommands="$commands"
+for marker in "${!usedMarkers[@]}"
+do
+    case "$marker" in
+	\*) saveIFS="${IFS-$' \t\n'}"; IFS=$'\n'
+		printf -v replacement %q "${lines[*]}"
+	    IFS="$saveIFS"
+	    ;;
+	@)  [ ${#lines[@]} -eq 0 ] \
+		&& replacement='' \
+		|| printf -v replacement '%q ' "${lines[@]}"; replacement="${replacement% }"
+	    ;;
+	+([0-9]))
+	    [ $marker -eq 0 ] \
+		&& printf -v replacement %q '' \
+		|| printf -v replacement %q "${lines[$((marker - 1))]}"
+	    ;;
+	-+([0-9]))
+	    [ $((-1 * marker)) -gt ${#lines[@]} ] \
+		&& printf -v replacement %q '' \
+		|| printf -v replacement %q "${lines[$marker]}";;
+	F)  if [ -z "$resultTempFile" ]; then
+		if [ ${#lines[@]} -eq 0 ]; then
+		    resultTempFile=/dev/null	# Optimization: no need for a real file.
+		else
+		    resultTempFile="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
+		    tempFiles+=("$resultTempFile")
+		    printf '%s\n' "${lines[@]}" > "$resultTempFile" || exit 3
+		fi
+	    fi
+	    printf -v replacement %q "$resultTempFile"
+	    ;;
+	*)  printf >&2 'ASSERT: Unhandled marker: %s\n' "$marker"; exit 3;;
+    esac
+    interpolatedCommands="${interpolatedCommands//"${argMS}${marker}${argME}"/${replacement}}"
+done
+
+cat -- "$tempFilespec" \
+    | { eval "$interpolatedCommands"; }
