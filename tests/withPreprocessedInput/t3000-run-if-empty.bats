@@ -1,11 +1,13 @@
 #!/usr/bin/env bats
 
 load fixture
+load marker
 
 @test "exits with 1 when no preprocessed output and does not run the command" {
-    runWithInput $'foo\nbar\nquux\nEOF' withPreprocessedInput --preprocess-command 'cat >/dev/null' -- sed -e 's/^/> /'
+    runWithInput $'foo\nbar\nquux\nEOF' withPreprocessedInput --preprocess-command 'cat >/dev/null' --command "$TO_MARKER_COMMANDLINE"
     [ $status -eq 1 ]
     [ "$output" = "" ]
+    assert_no_marker
 }
 
 @test "runs the command on --run-if-empty when no preprocessed output" {
