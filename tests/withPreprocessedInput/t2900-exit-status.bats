@@ -17,3 +17,10 @@ load marker
     [ "$output" = "" ]
     assert_no_marker
 }
+
+@test "preprocess-command's exit status is returned and does not run the command with parallel preprocessing" {
+    runWithInput $'foo\nbar\nquux\nEOF' withPreprocessedInput --parallel-preprocess --preprocess-command 'sed -e "3q 11"' --command "$TO_MARKER_COMMANDLINE"
+    [ $status -eq 11 ]
+    [ "$output" = "" ]
+    assert_no_marker
+}

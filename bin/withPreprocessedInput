@@ -13,7 +13,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-r|--run-if-empty] -P|--preprocess-exec SIMPLECOMMAND [...] ${WITHPREPROCESSEDINPUT_EXEC_END} [-P ...]|-p|--preprocess-command "COMMANDLINE" [-p ...] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...]${argMarker:+ [}${argMarker}${argMarker:+] [...]} ${WITHPREPROCESSEDINPUT_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-r|--run-if-empty] [--parallel-preprocess] -P|--preprocess-exec SIMPLECOMMAND [...] ${WITHPREPROCESSEDINPUT_EXEC_END} [-P ...]|-p|--preprocess-command "COMMANDLINE" [-p ...] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...]${argMarker:+ [}${argMarker}${argMarker:+] [...]} ${WITHPREPROCESSEDINPUT_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -40,6 +40,10 @@ HELPDESCRIPTION
     --run-if-empty|-r	Also run COMMANDs (without any supplied arguments or
 			prepended output) if the PREPROCESS-COMMAND(s) produced
 			no output.
+    --parallel-preprocess
+			Feed the input to the PREPROCESS-COMMAND(s) while still
+			reading the input. PREPROCESS-COMMAND(s) must fully
+			consume the input to avoid a SIGPIPE error.
     --preprocess-command|-p CMD
 			Execute CMD as a command-line, feeding it the input and
 			capturing its output.
@@ -65,6 +69,9 @@ EXIT STATUS:
     0	Complete success.
     1	No preprocessed output and --run-if-empty not specified.
     2	Bad invocation, wrong or missing command-line arguments.
+    3	Internal error or failed assertion.
+    141	PREPROCESS-COMMAND(s) did not fully consume the input when
+	--parallel-preprocess is given.
     *   any exit status from [PREPROCESS-]COMMAND(s)
 Example:
 HELPTEXT
@@ -93,6 +100,7 @@ quoteMarkers()
     # markers in usedMarkers.
 }
 
+captureAndPreprocess=captureThenPreprocess
 preprocessCommands=
 commands=
 isRunIfEmpty=
@@ -103,6 +111,8 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
+	--parallel-preprocess)
+			shift; captureAndPreprocess=captureWhilePreprocessing;;
 	--preprocess-command|-p)
 			shift; preprocessCommands+="${preprocessCommands:+ $WITHPREPROCESSEDINPUT_PREPROCESS_COMMAND_JOINER }${1?}"; shift;;
 	--preprocess-exec|-P)
@@ -171,14 +181,33 @@ tempFilespec="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo
 typeset -a tempFiles=("$tempFilespec")
 [ "${DEBUG:-}" ] || trap 'rm -f -- "${tempFiles[@]}" 2>/dev/null' EXIT
 
-readarray -t lines < <(
-    tee -- "$tempFilespec" \
-	| eval "$preprocessCommands"
-    printf '\n%d\n' "$?"
-)	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
-[ ${lines[-1]} -ne 0 ] && exit ${lines[-1]}
-unset 'lines[-1]'; [ -n "${lines[-1]}" ] || unset 'lines[-1]'
 
+captureThenPreprocess()
+{
+    cat > "$tempFilespec" || exit 3
+    readarray -t lines < <(
+	# Note: Suppressing [the SIGPIPE] error(s) from cat when $preprocessCommands
+	# does not consume all input.
+	{ cat -- "$tempFilespec" || :; } \
+	    | eval "$preprocessCommands"
+	printf '\n%d\n' "$?"
+    )	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+    [ ${lines[-1]} -ne 0 ] && exit ${lines[-1]}
+    unset 'lines[-1]'; [ -n "${lines[-1]}" ] || unset 'lines[-1]'
+}
+
+captureWhilePreprocessing()
+{
+    readarray -t lines < <(
+	tee -- "$tempFilespec" \
+	    | eval "$preprocessCommands"
+	printf '\n%d\n' "$?"
+    )	# Exit status from the process substitution is lost; return the actual exit status via an appended additional line.
+    [ ${lines[-1]} -ne 0 ] && exit ${lines[-1]}
+    unset 'lines[-1]'; [ -n "${lines[-1]}" ] || unset 'lines[-1]'
+}
+
+$captureAndPreprocess
 [ ${#lines[@]} -eq 0 ] && [ ! "$isRunIfEmpty" ] && exit 1
 
 if [ ${#usedMarkers[@]} -eq 0 ]; then
