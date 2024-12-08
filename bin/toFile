@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+
+printUsage()
+{
+    cat <<HELPTEXT
+Create a TARGET-FILE from standard input, automatically creating missing parent
+directories if necessary.
+HELPTEXT
+    echo
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-a|--append] [--sudo] [--] TARGET-FILE [-?|-h|--help]'
+}
+
+sudoArg=
+redir='>'
+typeset -a teeArg=()
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	    shift; printUsage "$0"; exit 0;;
+	--append|-a)	    teeArg=("$1"); shift; redir='>>';;
+	--sudo)		    shift; sudoArg="${SUDO:-sudo}";;
+	--)		    shift; break;;
+	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		    break;;
+    esac
+done
+if [ $# -ne 1 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+targetFilespec="${1:?}"; shift
+
+SUDO="$sudoArg"; [ $EUID -eq 0 ] || [ -w "$targetDirspec" ] && SUDO=''
+
+targetDirspec="$(dirname -- "$targetFilespec")"
+[ -d "$targetDirspec" ] || $SUDO mkdir --parents -- "$targetDirspec" || exit $?
+
+if [ -n "$SUDO" ]; then
+    $SUDO tee "${teeArg[@]}" -- "$targetFilespec" >/dev/null
+else
+    eval "cat $redir \"\$targetFilespec\""
+fi
