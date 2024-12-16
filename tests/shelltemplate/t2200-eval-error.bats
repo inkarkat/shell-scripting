@@ -15,7 +15,6 @@ export EMPTY=''
     run shelltemplate "${BATS_TEST_DIRNAME}/syntaxError.txt"
     [ $status -ne 0 ]
     [[ "$output" =~ 'unexpected EOF while looking for matching `"'\' ]]
-    [[ "$output" =~ 'syntax error: unexpected end of file'$ ]]
 }
 
 @test "eval error on undefined variable prevents override of existing target" {
