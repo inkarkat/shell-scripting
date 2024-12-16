@@ -2,10 +2,13 @@
 
 _A collection of shell scripts that simplify scripting tasks around argument handling, variable interpolation, etc._
 
+![Build Status](https://github.com/inkarkat/shell-scripting/actions/workflows/build.yml/badge.svg)
+
 ### Dependencies
 
 * Bash, GNU `sed`
 * [inkarkat/shell-basics](https://github.com/inkarkat/shell-basics) for the `commandWithHiddenId` and `commandOnSelected` commands
+* [inkarkat/shell-filters](https://github.com/inkarkat/shell-filters) for the `commandWithHiddenId` command
 * automated testing is done with _bats - Bash Automated Testing System_ (https://github.com/bats-core/bats-core)
 
 ### Installation

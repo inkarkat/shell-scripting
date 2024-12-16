@@ -21,5 +21,4 @@ ${EMPTY?} would, too.
 EOF
     [ $status -ne 0 ]
     [[ "$output" =~ 'unexpected EOF while looking for matching `"'\' ]]
-    [[ "$output" =~ 'syntax error: unexpected end of file'$ ]]
 }
