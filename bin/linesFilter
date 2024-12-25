@@ -1,10 +1,10 @@
 #!/bin/bash
 
-: ${LINESTOARG_COMMAND_JOINER=;}
-: ${LINESTOARG_EXEC_END=;}
-: ${LINESTOARG_LINE_WHAT=line}
-: ${LINESTOARG_ARG_MARKER='{}'}
-argMarker="$LINESTOARG_ARG_MARKER"; unset LINESTOARG_ARG_MARKER
+: ${LINESFILTER_COMMAND_JOINER=;}
+: ${LINESFILTER_EXEC_END=;}
+: ${LINESFILTER_LINE_WHAT=line}
+: ${LINESFILTER_ARG_MARKER='{}'}
+argMarker="$LINESFILTER_ARG_MARKER"; unset LINESFILTER_ARG_MARKER
 
 hasProgressNotification=; type -t progressNotification >/dev/null && hasProgressNotification=t
 
@@ -12,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-r|--run-if-empty]' "${hasProgressNotification:+ [--progress SINK]}" "[--with-header|--with-prompt $(runWithPrompt --get-short-usage 2>/dev/null)] [--between-command BETWEEN-COMMAND] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND [...] ${LINESTOARG_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: %q %s%s %s\n' "$(basename "$1")" '[-r|--run-if-empty] [+1|--allow-output|-1|--suppress-output]' "${hasProgressNotification:+ [--progress SINK]}" "[--with-header|--with-prompt $(runWithPrompt --get-short-usage 2>/dev/null)] [--between-command BETWEEN-COMMAND] -c|--command \"COMMANDLINE\" [...] | --exec SIMPLECOMMAND [...] ${LINESFILTER_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -27,9 +27,8 @@ printLongUsage()
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
 Read lines from standard input and pass each individually (${argMarker:+either }appended${argMarker:+ or
-replacing any $argMarker marker}) to COMMAND. If COMMAND transforms the argument
-to output line(s), this works like map.
-Similar to xargs --no-run-if-empty -d '\\n' [-I {}] -n 1 COMMAND.
+replacing any $argMarker marker}) to COMMAND. If COMMAND succeeds, the corresponding line
+is echoed back, so this works like filter.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -37,12 +36,19 @@ HELPDESCRIPTION
     cat <<HELPTEXT
     --run-if-empty|-r	Also run COMMANDs (without any supplied arguments) if
 			there is no input. By default, nothing will be executed.
+    --allow-output|+1	Don't redirect standard output of COMMANDs to standard
+			error. COMMANDs can add additional output that wasn't
+			present in the input.
+    --suppress-output|-1
+			Suppress standard output of COMMANDs. By default, it is
+			redirected to standard error to avoid interfering with
+			the filtering.
     --command|-c CMD	The command line to be executed. When this is a simple
 			command, it can also be passed as such. Read arguments
 			are appended${argMarker:+ or replace the string $argMarker}.
-    --exec CMD [...] ${LINESTOARG_EXEC_END}	Execute CMD; all following arguments are taken to be
+    --exec CMD [...] ${LINESFILTER_EXEC_END}	Execute CMD; all following arguments are taken to be
 			arguments to the CMD until an argument consisting of
-			'${LINESTOARG_EXEC_END}' is encountered. The argument ${argMarker:+either }is appended
+			'${LINESFILTER_EXEC_END}' is encountered. The argument ${argMarker:+either }is appended
 			${argMarker:+or replaces any $argMarker marker }inside COMMANDLINE.${hasProgressNotification:+
     --progress SINK	Report the current line through one of the SINKs of the
 			progressNotification command.}
@@ -57,10 +63,8 @@ HELPTEXT
 		    Execute BETWEEN-COMMAND in between each COMMAND execution.
 		    The last COMMAND's exit status is in \$?.
 SEE ALSO:
-- linesFilter additionally prints the original line(s) where COMMAND succeeds,
-  working like filter.
-- augmentLines additionally captures each COMMAND's output and combines it with
-  the original line.
+- linesToArg also dispatches individual lines, but doesn't print anything on its
+  own; it works like map.
 
 EXIT STATUS:
 Overall exit status is the highest status of all. If you specify any
@@ -68,7 +72,7 @@ runWith[Prompt] argument, --worst-status needs to be explicitly passed.
 
 Example:
 HELPTEXT
-    printf 'echonl google.com yahoo.com bing.com | %q %s\n' "$(basename "$1")" 'ping -c1 -q --'
+    printf 'echonl google.com doesnotresolve.com nosuchthing.net bing.com | %q -1 %s 2>/dev/null\n' "$(basename "$1")" 'ping -c1 -q --'
 }
 
 progressSink=
@@ -76,6 +80,7 @@ with=
 isRunIfEmpty=
 commands=
 betweenCommand=
+redir='>&2'
 typeset -a runWithPromptArgs=()
 while [ $# -ne 0 ]
 do
@@ -83,22 +88,26 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
-	--command|-c)	shift; commands+="${commands:+ $LINESTOARG_COMMAND_JOINER }$1"; shift;;
+	--allow-output|+1)
+			shift; redir='';;
+	--suppress-output|-1)
+			shift; redir='>/dev/null';;
+	--command|-c)	shift; commands+="${commands:+ $LINESFILTER_COMMAND_JOINER }$1"; shift;;
 	--exec)		shift
 			cmd=
 			printf -v escapedArgMarker %q "$argMarker"
-			while [ $# -gt 0 -a "$1" != "$LINESTOARG_EXEC_END" ]
+			while [ $# -gt 0 -a "$1" != "$LINESFILTER_EXEC_END" ]
 			do
 			    printf -v quotedArg %q "$1"
 			    cmd+="${cmd:+ }${quotedArg//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 			    shift
 			done
 			if [ $# -eq 0 ]; then
-			    echo "ERROR: --exec command must be concluded with '${LINESTOARG_EXEC_END}'"; echo; printUsage "$0"
+			    echo "ERROR: --exec command must be concluded with '${LINESFILTER_EXEC_END}'"; echo; printUsage "$0"
 			    exit 2
 			fi >&2
 			shift
-			commands+="${commands:+ $LINESTOARG_COMMAND_JOINER }${cmd}"
+			commands+="${commands:+ $LINESFILTER_COMMAND_JOINER }${cmd}"
 			;;
 	--progress)	shift; progressSink="$1"; shift;;
 	--with-header)	shift; with=header;;
@@ -121,10 +130,10 @@ if [ $# -ne 0 ]; then
     # undo the effects of eval.
     printf -v quotedSimpleCommand '%q ' "$@"
     printf -v escapedArgMarker %q "$argMarker"
-    commands+="${commands:+ $LINESTOARG_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+    commands+="${commands:+ $LINESFILTER_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 fi
 if [ -z "$commands" ]; then
-    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $LINESTOARG_EXEC_END or SIMPLECOMMAND."
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $LINESFILTER_EXEC_END or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2
@@ -136,7 +145,7 @@ elif [ ${#runWithPromptArgs[@]} -gt 0 -a "$with" = 'header' ]; then
 fi >&2
 
 if [ "$hasProgressNotification" ] && [ -n "$progressSink" ]; then
-    typeset -a progressNotificationCommand=(progressNotification --to "$progressSink" ${LINESTOARG_LINE_WHAT:+--prepend-count "${LINESTOARG_LINE_WHAT}"})
+    typeset -a progressNotificationCommand=(progressNotification --to "$progressSink" ${LINESFILTER_LINE_WHAT:+--prepend-count "${LINESFILTER_LINE_WHAT}"})
 fi
 
 setStatus()
@@ -171,7 +180,9 @@ case "$with" in
 		typeset -a a=("$quotedLine")   # Need to use quoted line here.
 		[ "$interpolatedCommands" = "$commands" ] || a=()
 
+		printf '{ '
 		printf '%s ' "$interpolatedCommands" "${a[@]}"
+		printf '; }%s && printf %%s\\\\n %s' "${redir:+ }${redir}" "$quotedLine"
 		printf '\n'
 		isFirst=
 	    done
@@ -206,7 +217,8 @@ case "$with" in
 	    interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
 	    [ "$interpolatedCommands" = "$commands" ] || quotedLine=''
 
-	    eval "$interpolatedCommands" "$quotedLine" \
+	    eval "{ $interpolatedCommands $quotedLine; } $redir" \
+		&& printf '%s\n' "$line" \
 		|| { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
 	    isFirst=
 	done
