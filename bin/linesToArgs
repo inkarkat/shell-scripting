@@ -3,12 +3,13 @@
 : ${LINESTOARGS_ARG_MARKER='{}'}
 argMarker="$LINESTOARGS_ARG_MARKER"; unset LINESTOARGS_ARG_MARKER
 : ${LINESTOARGS_COMMAND_JOINER=;}
+: ${LINESTOARGS_EXEC_END=;}
 
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-r|--run-if-empty] -c|--command "COMMANDLINE" [-c ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-r|--run-if-empty] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${LINESTOARGS_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -36,6 +37,10 @@ HELPDESCRIPTION
     --command|-c CMD	The command line to be executed. When this is a simple
 			command, it can also be passed as such. Read arguments
 			are appended${argMarker:+ or replace the string $argMarker}.
+    --exec CMD [...] ${LINESTOARGS_EXEC_END}	Execute CMD; all following arguments are taken to be
+			arguments to the CMD until an argument consisting of
+			'${LINESTOARGS_EXEC_END}' is encountered. Arguments ${argMarker:+either }are appended
+			${argMarker:+or replace any $argMarker marker }inside COMMANDLINE.
 HELPTEXT
 }
 
@@ -48,6 +53,22 @@ do
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
 	--command|-c)	shift; commands+="${commands:+ $LINESTOARGS_COMMAND_JOINER }$1"; shift;;
+	--exec)		shift
+			cmd=
+			printf -v escapedArgMarker %q "$argMarker"
+			while [ $# -gt 0 -a "$1" != "$LINESTOARGS_EXEC_END" ]
+			do
+			    printf -v quotedArg %q "$1"
+			    cmd+="${cmd:+ }${quotedArg//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --exec command must be concluded with '${LINESTOARGS_EXEC_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+="${commands:+ $LINESTOARGS_COMMAND_JOINER }${cmd}"
+			;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
@@ -61,7 +82,7 @@ if [ $# -ne 0 ]; then
     commands+="${commands:+ $LINESTOARGS_COMMAND_JOINER }${quotedSimpleCommand//"$escapedArgMarker"/$argMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
 fi
 if [ -z "$commands" ]; then
-    echo 'ERROR: No COMMAND(s) specified; need to pass -c|--command "COMMANDLINE", or SIMPLECOMMAND.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\", or --exec SIMPLECOMMAND [...] $LINESTOARGS_EXEC_END or SIMPLECOMMAND."
     echo
     printUsage "$0"
     exit 2
