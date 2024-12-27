@@ -65,6 +65,8 @@ HELPTEXT
 SEE ALSO:
 - linesToArg also dispatches individual lines, but doesn't print anything on its
   own; it works like map.
+- filterExpr just passes (and then drops) the first column to COMMAND for
+  filtering.
 
 EXIT STATUS:
 Overall exit status is the highest status of all. If you specify any
