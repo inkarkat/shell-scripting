@@ -74,6 +74,7 @@ HELPTEXT
 progressSink=
 with=
 isRunIfEmpty=
+additionalSuccessStatus=
 commands=
 betweenCommand=
 typeset -a runWithPromptArgs=()
@@ -108,6 +109,8 @@ do
 			runWithPromptArgs+=("$1"); shift; : ${with:=runWith};;
 	--initial-status|--no-count-on|--exit-on|--exit-unless|--comment|--summarize-failed|--summarize-failed-separator)
 			runWithPromptArgs+=("$1" "$2"); shift; shift; : ${with:=runWith};;
+	--status-99-is-noop)
+			runWithPromptArgs+=("$1"); shift; additionalSuccessStatus=99;;
 
 	--between-command)
 			shift; betweenCommand="$1"; shift;;
@@ -191,11 +194,14 @@ case "$with" in
 	    reportProgress() { :; }
 	fi
 
-	status=0
+	status=
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
 	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
-		setStatus $exitStatus; eval "$betweenCommand" || { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+		setStatus $exitStatus; eval "$betweenCommand"; exitStatus=$?
+		if [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
+		    status=$exitStatus
+		fi
 	    fi
 
 	    [ ! "$isHeader" ] || header ${isFirst:+--first} "$line"
@@ -206,11 +212,13 @@ case "$with" in
 	    interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
 	    [ "$interpolatedCommands" = "$commands" ] || quotedLine=''
 
-	    eval "$interpolatedCommands" "$quotedLine" \
-		|| { exitStatus=$?; if [ $exitStatus -gt $status ]; then status=$exitStatus; fi; }
+	    eval "$interpolatedCommands" "$quotedLine"; exitStatus=$?
+	    if [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
+		status=$exitStatus
+	    fi
 	    isFirst=
 	done
-	exit $status
+	exit ${status:-${additionalSuccessStatus:-0}}
 	;;
     *)	printf >&2 'ASSERT: Invalid strategy: %s\n' "$with"; exit 3;;
 esac
