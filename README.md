@@ -9,6 +9,7 @@ _A collection of shell scripts that simplify scripting tasks around argument han
 * Bash, GNU `sed`
 * [inkarkat/shell-basics](https://github.com/inkarkat/shell-basics) for the `commandWithHiddenId` and `commandOnSelected` commands
 * [inkarkat/shell-filters](https://github.com/inkarkat/shell-filters) for the `commandWithHiddenId` command
+* [inkarkat/miniDB](https://github.com/inkarkat/miniDB) for the `dishOutSections` command
 * automated testing is done with _bats - Bash Automated Testing System_ (https://github.com/bats-core/bats-core)
 
 ### Installation
