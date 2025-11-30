@@ -1,0 +1,14 @@
+first section
+with some text
+---
+second section, single line
+---
+third section with empty lines
+
+
+the end
+---
+---
+fifth section after empty fourth section
+---
+last section
