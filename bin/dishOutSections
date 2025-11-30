@@ -19,6 +19,8 @@ printLongUsage()
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
 Print consecutive sections of a source file on each invocation.
+Allows to use a single text file as a source for different outputs for the same
+invocation, e.g. for mocking a command in an automated test.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -52,11 +54,9 @@ HELPDESCRIPTION
 				and no more sections are available.
     --for|-f CLIENT-ID		Store the section counter for the CLIENT-ID,
 				allowing parallel iterations of the same FILE.
-SEE ALSO:
-- (Commands offering complementary functionality, or commands using this command.)
-
 RELATED COMMANDS:
-- (Alternatives from other authors, other approaches, references not used here.)
+- csplit splits a file into many small ones, which could then also be iterated
+  over.
 
 EXIT STATUS:
     0	Complete success.
@@ -64,7 +64,6 @@ EXIT STATUS:
     2	Bad invocation, wrong or missing command-line arguments.
     3	Internal error or failed assertion.
     4	The file has been exhausted; no more sections are available.
-
 HELPTEXT
 }
 
