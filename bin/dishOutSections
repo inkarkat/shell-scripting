@@ -1,0 +1,201 @@
+#!/bin/bash
+
+printShortUsage()
+{
+    # Note: short followed by long option; if the user knows the short one, they can
+    # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [-R|--reset] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
+}
+printUsage()
+{
+    # This is the short help when launched with no or incorrect arguments.
+    # It is printed to stderr to avoid accidental processing.
+    printShortUsage "$1" >&2
+    printf >&2 '\nTry %q --help for more information.\n' "$(basename "$1")"
+}
+printLongUsage()
+{
+    # This is the long "man page" when launched with the help argument.
+    # It is printed to stdout to allow paging with 'more'.
+    cat <<HELPDESCRIPTION
+Print consecutive sections of a source file on each invocation.
+Allows to use a single text file as a source for different outputs for the same
+invocation, e.g. for mocking a command in an automated test.
+HELPDESCRIPTION
+    echo
+    printShortUsage "$1"
+    echo
+    cat <<HELPTEXT
+    --section-separator|-S PATTERN
+				Lines matching PATTERN separate the individual
+				sections within the FILE. These lines are not
+				part of the output. PATTERN is an AWK-style
+				unanchored extended regular expression. The
+				default separator is two or three dashes.
+    --basedir DIR               Set the base directory in which the section
+				counters are stored. Defaults to
+				XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+    --base-type config|data|runtime|cache|temp
+				Set the base directory based on the passed
+				characterization. The default is "data".
+    --count|-c N		Print the N'th section without affecting the
+				stored section counters.
+    --seek|-s N			Print the N'th section and change the stored
+				section counter so that the following invocation
+				will continue with the next section.
+    --reset|-R			Set the section counter back to 1 to that the
+				next invocation will start with the first
+				section again.
+    --wrap|-w			Seamlessly reset to the first section once the
+				last section has been reached / wrap around when
+				accessing beyond the last section. By default,
+				the command will simply fail.
+    --delete-when-exhausted|-D	Remove FILE if the last section had been reached
+				and no more sections are available.
+    --for|-f CLIENT-ID		Store the section counter for the CLIENT-ID,
+				allowing parallel iterations of the same FILE.
+RELATED COMMANDS:
+- csplit splits a file into many small ones, which could then also be iterated
+  over.
+
+EXIT STATUS:
+    0	Complete success.
+    1	Failed to read the FILE. Any counters will be reset.
+    2	Bad invocation, wrong or missing command-line arguments.
+    3	Internal error or failed assertion.
+    4	The file has been exhausted; no more sections are available.
+HELPTEXT
+}
+
+separatorPattern='^-{2,3}$'
+typeset -a databaseArgs=()
+requestedCount=
+unset databaseAction
+isReset=
+isWrap=
+isDelete=
+clientId=default
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--section-separator|-S)
+			shift; separatorPattern="${1:?}"; shift;;
+	--basedir|--base-type)
+			databaseArgs+=("$1" "${2:?}"); shift; shift;;
+	--count|-c)	shift; requestedCount="${1:?}"; shift; databaseAction='';;
+	--seek|-s)	shift; requestedCount="${1:?}"; shift;;
+	--reset|-R)	shift; isReset=t;;
+	--wrap|-w)	shift; isWrap=t;;
+	--delete-when-exhausted|-D)
+			shift; isDelete=t;;
+	--for|-f)	shift; clientId="${1:?}"; shift;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+    esac
+done
+[ "$isReset" ] && databaseAction=reset
+if [ $# -ne 1 ]; then
+    [ $# -eq 0 ] \
+	&& echo 'ERROR: No FILE passed.' \
+	|| echo 'ERROR: Need one FILE.'
+    echo
+    printUsage "$0"
+    exit 2
+fi >&2
+filespec="${1:?}"; shift
+filespecAsName="$(pathAsFilename --encode -- "$filespec")" || exit 3
+
+database()
+{
+    acceptStatus 0 1 4 miniDB "${databaseArgs[@]}" --namespace "$(basename -- "${BASH_SOURCE[0]}")" --table "$filespecAsName" --schema 'CLIENT_ID SECTION_COUNTER' "$@"
+}
+
+increment()
+{
+    database --update "$clientId" --column SECTION_COUNTER=$((count + 1)) || return 3
+}
+
+reset()
+{
+    database --update "$clientId" --column SECTION_COUNTER=1 || return 3
+}
+
+cleanup()
+{
+    database --drop
+}
+
+
+printSection()
+{
+    local targetSection="${1:?}"; shift
+    awk \
+	-v "separatorPattern=${separatorPattern//\\/\\\\}" \
+	-v "targetSection=$targetSection" \
+'
+BEGIN {
+    section = 1
+    if (targetSection == 1) found = 1
+}
+$0 ~ separatorPattern {
+    section++
+    if (section == targetSection) found = 1
+    next
+}
+section == targetSection {
+    print
+    printed = 1
+}
+END {
+    if (! found) {
+	printf("%d\n", section)
+	exit(1)
+    } else if (! printed) {
+	exit(4)
+    }
+}
+' "${filespec:?}"
+}
+
+if [ -n "$requestedCount" ]; then
+    count="$requestedCount"
+else
+    count=$(database --query "$clientId" --columns SECTION_COUNTER) || exit 3
+fi
+: ${count:=1}
+section="$(printSection $count)"; status=$?
+case $status in
+    0)	printf '%s\n' "$section";;
+    4)	;;  # Empty section.
+    2)	cleanup; exit 1;;    # AWK fatal error (to read the file); error already printed.
+    1)	if [ ! "$isWrap" ]; then
+	    if [ "$isDelete" ]; then
+		rm --force -- "$filespec" || exit 3
+		cleanup
+	    fi
+	    exit 4
+	fi
+
+	if [ -n "$requestedCount" ]; then
+	    # Wrap around the passed count based on how many sections are available.
+	    actualTotal=$section
+	    count=$(((requestedCount - 1) % actualTotal + 1))
+	else
+	    # Reset to the first section when incrementing.
+	    count=1
+	fi
+
+	section="$(printSection $count)"; status=$?
+	case $status in
+	    0)	printf '%s\n' "$section";;
+	    4)	;;  # Empty section.
+	    2)	cleanup; exit 1;;    # AWK fatal error (to read the file); error already printed.
+	    1)	exit 3;;    # There should always be a first section.
+	    *)	printf >&2 'ASSERT: Unhandled exit status: %s\n' "$status"; exit 3;;
+	esac
+	;;
+    *)	printf >&2 'ASSERT: Unhandled exit status: %s\n' "$status"; exit 3;;
+esac
+${databaseAction=increment}
