@@ -27,4 +27,5 @@ EOF
     assert_output 'last section'
 
     run -4 dishOutSections "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output ''
 }

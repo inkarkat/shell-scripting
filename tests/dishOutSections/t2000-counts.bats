@@ -29,6 +29,7 @@ EOF
 
 @test "printing of non-existing section returns 4" {
     run -4 dishOutSections --count 99 "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output ''
 }
 
 @test "printing of non-existing file returns 1" {
