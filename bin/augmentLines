@@ -186,9 +186,9 @@ case "$with" in
 		printf -v completeCommand '%s ' "$interpolatedCommands" "${a[@]}"
 
 		if [ "$isAppend" ]; then
-		    printf 'printf %%s%%s%%s\\\\n %q %q $(%s %s) %s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "${completeCommand% }" "$redirPrefix" "$redirSuffix"
+		    printf 'printf %%s%%s%%s\\\\n %q %q $({ %s; } %s) %s\n' "$originalLine" "$AUGMENTLINES_SEPARATOR" "${completeCommand% }" "$redirPrefix" "$redirSuffix"
 		else
-		    printf 'printf %%s%%s%%s\\\\n $(%s %s) %q %q %s\n' "${completeCommand% }" "$redirPrefix" "$AUGMENTLINES_SEPARATOR" "$originalLine" "$redirSuffix"
+		    printf 'printf %%s%%s%%s\\\\n $({ %s; } %s) %q %q %s\n' "${completeCommand% }" "$redirPrefix" "$AUGMENTLINES_SEPARATOR" "$originalLine" "$redirSuffix"
 		fi
 		isFirst=
 	    done
@@ -227,7 +227,7 @@ case "$with" in
 	    interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
 	    [ "$interpolatedCommands" = "$commands" ] || quotedLine=''
 
-	    eval "commandOutput=\"\$($interpolatedCommands $quotedLine ${redirPrefix})\" ${redirSuffix}"; exitStatus=$?
+	    eval "commandOutput=\"\$({ $interpolatedCommands $quotedLine; } ${redirPrefix})\" ${redirSuffix}"; exitStatus=$?
 	    if [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
 		status=$exitStatus
 	    fi
