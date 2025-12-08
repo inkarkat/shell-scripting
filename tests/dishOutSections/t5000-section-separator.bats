@@ -3,27 +3,27 @@
 load fixture
 
 @test "print individual fortunes with custom separator" {
-    run dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output '@oneliners@'
 
-    run dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output 'A ton of elephant is less than one elephant.'
 
-    run dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output 'The problem of being faster than light is that you can only live in darkness.'
 
-    run dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output "If money doesn't grow on trees, then why have banks branches?"
 
-    run dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^--$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output '@twoliners@'
 }
 
 @test "print fortune groups with another custom separator" {
-    run dishOutSections --section-separator '^@[[:alpha:]]+@$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^@[[:alpha:]]+@$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output ''
 
-    run dishOutSections --section-separator '^@[[:alpha:]]+@$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^@[[:alpha:]]+@$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output - <<'EOF'
 --
 A ton of elephant is less than one elephant.
@@ -34,7 +34,7 @@ If money doesn't grow on trees, then why have banks branches?
 --
 EOF
 
-    run dishOutSections --section-separator '^@[[:alpha:]]+@$' "${BATS_TEST_DIRNAME}/fortunes.txt"
+    run -0 dishOutSections --section-separator '^@[[:alpha:]]+@$' "${BATS_TEST_DIRNAME}/fortunes.txt"
     assert_output - <<'EOF'
 --
 My teacher told me years ago not to worry about spelling because in the future
