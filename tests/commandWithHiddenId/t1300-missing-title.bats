@@ -3,10 +3,11 @@
 load fixture
 
 @test "a missing TITLE is defaulted to its ID" {
-    run commandWithHiddenId --piped --command 'grep oo\\\|00' -- '100' "${INPUT[@]}" '1001'
-    [ $status -eq 0 ]
-    [ "$output" = "100
+    run -0 commandWithHiddenId --piped --command 'grep oo\\\|00' -- '100' "${INPUT[@]}" '1001'
+    assert_output - <<'EOF'
+100
 1
 4
-1001" ]
+1001
+EOF
 }

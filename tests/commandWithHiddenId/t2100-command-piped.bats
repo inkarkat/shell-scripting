@@ -3,8 +3,9 @@
 load fixture
 
 @test "command that selectively chooses some piped arguments" {
-    run commandWithInput --stdin --piped --command 'grep oo'
-    [ $status -eq 0 ]
-    [ "$output" = "1
-4" ]
+    run -0 commandWithInput --stdin --piped --command 'grep oo'
+    assert_output - <<'EOF'
+1
+4
+EOF
 }

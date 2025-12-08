@@ -1,19 +1,18 @@
 #!/usr/bin/env bats
 
+load fixture
+
 @test "returns 124 if no arguments are available" {
-    run commandWithHiddenId --command 'grep oo'
-    [ $status -eq 124 ]
-    [ "$output" = "" ]
+    run -124 commandWithHiddenId --command 'grep oo'
+    assert_output ''
 }
 
 @test "returns 124 if nothing is piped into it" {
-    run commandWithHiddenId --piped --command 'grep oo'
-    [ $status -eq 124 ]
-    [ "$output" = "" ]
+    run -124 commandWithHiddenId --piped --command 'grep oo'
+    assert_output ''
 }
 
 @test "returns 124 if everything is filtered out" {
-    run commandWithHiddenId --filter "argsToLines -c 'sed -e d'" --piped --command 'grep oo' -- "${INPUT[@]}"
-    [ $status -eq 124 ]
-    [ "$output" = "" ]
+    run -124 commandWithHiddenId --filter "argsToLines -c 'sed -e d'" --piped --command 'grep oo' -- "${INPUT[@]}"
+    assert_output ''
 }

@@ -3,9 +3,14 @@
 load fixture
 
 @test "preprocessed lines are passed as arguments with markers {N}" {
-    runWithInput $'foo\nbar\nquux\nEOF' withPreprocessedInput --preprocess-command 'sed -ne 2,3p' --command 'printf "got: [%s]\\n" {-1} {1}; sed -e "s/^/{2}> /" {F} - {F}; printf "with: [%s]\\n" {*} {@}'
-    [ $status -eq 0 ]
-    [ "$output" = "got: [quux]
+    run -0 withPreprocessedInput --preprocess-command 'sed -ne 2,3p' --command 'printf "got: [%s]\\n" {-1} {1}; sed -e "s/^/{2}> /" {F} - {F}; printf "with: [%s]\\n" {*} {@}' <<'END'
+foo
+bar
+quux
+EOF
+END
+    assert_output - <<'EOF'
+got: [quux]
 got: [bar]
 quux> bar
 quux> quux
@@ -18,5 +23,6 @@ quux> quux
 with: [bar
 quux]
 with: [bar]
-with: [quux]" ]
+with: [quux]
+EOF
 }

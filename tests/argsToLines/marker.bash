@@ -1,5 +1,7 @@
 #!/bin/bash
 
+load fixture
+
 setup()
 {
     export MARKER="${BATS_TMPDIR}/marker"

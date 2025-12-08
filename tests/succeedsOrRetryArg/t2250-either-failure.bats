@@ -3,25 +3,21 @@
 load fixture
 
 @test "failing command returns 1 with --either-failure" {
-    runStdout succeedsOrRetryArg --either-failure "${EPOCH[@]}" "$BAD_EPOCH_INPUT"
-    [ $status -eq 1 ]
-    [ "$output" = "$BAD_EPOCH_INPUT" ]
+    run -1 --separate-stderr succeedsOrRetryArg --either-failure "${EPOCH[@]}" "$BAD_EPOCH_INPUT"
+    assert_output "$BAD_EPOCH_INPUT"
 }
 
 @test "failing command returns 99 with --either-failure" {
-    runStdout succeedsOrRetryArg --either-failure failNinetyNine arg
-    [ $status -eq 99 ]
-    [ "$output" = "arg" ]
+    run -99 --separate-stderr succeedsOrRetryArg --either-failure failNinetyNine arg
+    assert_output 'arg'
 }
 
 @test "failing command returns 99 with --either-failure because retry command is also failing with 99" {
-    runStdout succeedsOrRetryArg --either-failure --retry-exec failNinetyNine \; "${EPOCH[@]}" arg
-    [ $status -eq 99 ]
-    [ "$output" = "" ]
+    run -99 --separate-stderr succeedsOrRetryArg --either-failure --retry-exec failNinetyNine \; "${EPOCH[@]}" arg
+    assert_output ''
 }
 
 @test "failing command returns 1 with --either-failure because retry command is also failing with 1" {
-    runStdout succeedsOrRetryArg --either-failure --retry-exec "${EPOCH[@]}" \; failNinetyNine arg
-    [ $status -eq 1 ]
-    [ "$output" = "" ]
+    run -1 --separate-stderr succeedsOrRetryArg --either-failure --retry-exec "${EPOCH[@]}" \; failNinetyNine arg
+    assert_output ''
 }

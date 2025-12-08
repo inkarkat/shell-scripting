@@ -3,11 +3,12 @@
 load fixture
 
 @test "a command can select the same entry multiple times" {
-    run commandWithHiddenId --piped --command 'echo -e bar\\nquux\\nbar\\nfoo\\nbar' -- "${INPUT[@]}"
-    [ $status -eq 0 ]
-    [ "$output" = "2
+    run -0 commandWithHiddenId --piped --command 'echo -e bar\\nquux\\nbar\\nfoo\\nbar' -- "${INPUT[@]}"
+    assert_output - <<'EOF'
+2
 9
 2
 1
-2" ]
+2
+EOF
 }

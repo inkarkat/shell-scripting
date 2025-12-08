@@ -1,8 +1,9 @@
 #!/usr/bin/env bats
 
+load fixture
+
 @test "-h prints long usage help" {
-  run evalFile -h
-    [ $status -eq 0 ]
-    [ "${lines[0]%% *}" != 'Usage:' ]
-    [[ "$output" =~ 'Usage:' ]]
+  run -0 evalFile -h
+    refute_line -n 0 -e '^Usage:'
+    assert_output -e 'Usage:'
 }
