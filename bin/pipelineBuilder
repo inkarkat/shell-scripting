@@ -9,6 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] -c|--command \"SOURCE-COMMANDLINE\" [-c ...] | --exec SOURCE-SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
     printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
@@ -23,7 +24,8 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Build a pipeline out of COMMANDs, and process the input with it.
+Build a pipeline out of COMMANDs (in the order given), and process the input /
+the first (i.e. acting as a source) command's output with it.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
