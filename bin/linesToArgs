@@ -9,7 +9,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-r|--run-if-empty] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${LINESTOARGS_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-r|--run-if-empty] [--prefix PREFIX] [--suffix SUFFIX] [--before BEFORE-ARG [--before ...]] [--after AFTER-ARG [--after ...]] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${LINESTOARGS_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -34,6 +34,10 @@ HELPDESCRIPTION
     cat <<HELPTEXT
     --run-if-empty|-r	Also run COMMANDs (without any supplied arguments) if
 			there is no input. By default, nothing will be executed.
+    --prefix PREFIX	Prepend PREFIX to each argument (inside that argument).
+    --suffix SUFFIX	Append SUFFIX to each argument (inside that argument).
+    --before BEFORE-ARG	Put BEFORE-ARG before each argument (as a separate one).
+    --after AFTER-ARG	Put AFTER-ARG after each argument (as a separate one).
     --command|-c CMD	The command line to be executed. When this is a simple
 			command, it can also be passed as such. Read arguments
 			are appended${argMarker:+ or replace the string $argMarker}.
@@ -45,6 +49,10 @@ HELPTEXT
 }
 
 isRunIfEmpty=
+prefix=
+suffix=
+typeset -a beforeArgs=()
+typeset -a afterArgs=()
 commands=
 while [ $# -ne 0 ]
 do
@@ -52,6 +60,10 @@ do
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--run-if-empty|-r)
 			shift; isRunIfEmpty=t;;
+	--prefix)	shift; prefix="${1?}"; shift;;
+	--suffix)	shift; suffix="${1?}"; shift;;
+	--before)	shift; beforeArgs+=("${1?}"); shift;;
+	--after)	shift; afterArgs+=("${1?}"); shift;;
 	--command|-c)	shift; commands+="${commands:+ $LINESTOARGS_COMMAND_JOINER }$1"; shift;;
 	--exec)		shift
 			cmd=
@@ -92,6 +104,16 @@ fi >&2
 readarray -t lines
 [ ${#lines[@]} -eq 0 ] && [ ! "$isRunIfEmpty" ] && exit 0
 
+if [ -n "$prefix" -o -n "$suffix" -o ${#beforeArgs[@]} -gt 0 -o ${#afterArgs[@]} -gt 0 ]; then
+    typeset -a newLines=()
+    for line in "${lines[@]}"
+    do
+	[ ${#beforeArgs[@]} -eq 0 ] || newLines+=("${beforeArgs[@]}")
+	newLines+=("${prefix}${line}${suffix}")
+	[ ${#afterArgs[@]} -eq 0 ] || newLines+=("${afterArgs[@]}")
+    done
+    lines=("${newLines[@]}")
+fi
 
 printf -v quotedLines '%q ' "${lines[@]}"; quotedLines="${quotedLines% }"
 interpolatedCommands="${commands//"$argMarker"/$quotedLines}"
