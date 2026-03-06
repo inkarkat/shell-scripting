@@ -9,8 +9,9 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] -c|--command \"SOURCE-COMMANDLINE\" [-c ...] | --exec SOURCE-SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-p|--paginate] [-r|--reverse] [-?|-h|--help] ..."
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -c|--command \"SOURCE-COMMANDLINE\" [-c ...] | --exec SOURCE-SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] [--exec ...] | [--] SIMPLECOMMAND [...]"
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "... -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] $PIPELINEBUILDER_EXEC_END [...] [--exec ...] | [--] SIMPLECOMMAND [...]"
 }
 printUsage()
 {
