@@ -1,11 +1,16 @@
 #!/bin/bash
-set -e
+set -o pipefail
+
+: ${TOFILE_COMMAND_JOINER=;}
+: ${TOFILE_EXEC_END=;}
 
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-a|--append] [--sudo] [-t|--tee] [--] TARGET-FILE [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--] TARGET-FILE [-a|--append] [--sudo] [-t|--tee] [-?|-h|--help] ...'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... [-1|--stdout|-2|--stderr] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${TOFILE_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...]"
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '...'
 }
 printUsage()
 {
@@ -19,8 +24,8 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Create a TARGET-FILE from standard input, automatically creating missing parent
-directories if necessary.
+Create a TARGET-FILE from standard input / COMMAND output, automatically
+creating missing parent directories if necessary.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -33,6 +38,15 @@ HELPDESCRIPTION
     --tee|-t		Also print the input in addition to putting it into
 			TARGET-FILE. This then works like tee, but with
 			auto-creation of missing parent directories.
+    --stdout|-1		Only put standard output into TARGET-FILE; error output
+			is left alone and output normally.
+    --stderr|-2		Only put error output into TARGET-FILE; other output is
+			left alone and output normally.
+    --command|-c CMD	Execute CMD as a command-line and put its output into
+			TARGET-FILE.
+    --exec CMD [...] ${TOFILE_EXEC_END}	Execute CMD and put its output into TARGET-FILE; all
+			following arguments are taken to be arguments to the CMD
+			until an argument consisting of '${TOFILE_EXEC_END}' is encountered.
 HELPTEXT
 }
 
@@ -40,6 +54,8 @@ sudoArg=
 sudoTeeRedir='>/dev/null'
 redir='>'
 isTee=
+capturePrefix='2>&1'
+captureSuffix=
 typeset -a teeArg=()
 while [ $# -ne 0 ]
 do
@@ -48,26 +64,61 @@ do
 	--append|-a)	teeArg=("$1"); shift; redir='>>';;
 	--sudo)		shift; sudoArg="${SUDO:-sudo}";;
 	--tee|-t)	shift; isTee=t; sudoTeeRedir='';;
+	--stdout|-1)	shift; capturePrefix='';;
+	--stderr|-2)	shift; capturePrefix='3>&1 1>&2 2>&3 3>&-'; captureSuffix='3>&1 1>&2 2>&3 3>&-';;
+	--command|-c)	shift; commands+="${commands:+ $TOFILE_COMMAND_JOINER }${1?}"; shift;;
+	--exec)		shift
+			cmd=
+			while [ $# -gt 0 -a "$1" != "$TOFILE_EXEC_END" ]
+			do
+			    printf -v quotedArg %q "$1"
+			    cmd+="${cmd:+ }${quotedArg}"
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --exec command must be concluded with '${TOFILE_EXEC_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			commands+="${commands:+ $TOFILE_COMMAND_JOINER }${cmd}"
+			;;
+	--)		shift
+			[ -z "$targetFilespec" ] || break
+			if [ $# -eq 0 ]; then
+			    echo 'ERROR: No TARGET-FILE passed.'
+			    echo
+			    printUsage "$0"
+			    exit 2
+			fi >&2
+			targetFilespec="${1:?}"; shift
+			;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
-	*)		break;;
+	*)		[ -z "$targetFilespec" ] || break
+			targetFilespec="${1:?}"; shift
 			;;
     esac
 done
-if [ $# -ne 1 ]; then
-    printUsage "$0" >&2
-    exit 2
+if [ $# -ne 0 ]; then
+    # Combine --command and SIMPLECOMMAND; need to quote SIMPLECOMMAND to
+    # undo the effects of eval.
+    printf -v quotedSimpleCommand '%q ' "$@"
+    commands+="${commands:+ $TOFILE_COMMAND_JOINER }${quotedSimpleCommand% }"
 fi
-targetFilespec="${1:?}"; shift
 
 SUDO="$sudoArg"; [ $EUID -eq 0 ] || [ -w "$targetDirspec" ] && SUDO=''
 
 targetDirspec="$(dirname -- "$targetFilespec")"
 [ -d "$targetDirspec" ] || $SUDO mkdir --parents -- "$targetDirspec" || exit $?
 
-if [ -n "$SUDO" ]; then
-    eval '$SUDO tee "${teeArg[@]}" -- "$targetFilespec"' "$sudoTeeRedir"
-elif [ "$isTee" ]; then
-    tee "${teeArg[@]}" -- "$targetFilespec"
-else
-    eval "cat $redir \"\$targetFilespec\""
-fi
+capture()
+{
+    if [ -n "$SUDO" ]; then
+	eval '$SUDO tee "${teeArg[@]}" -- "$targetFilespec"' "$sudoTeeRedir"
+    elif [ "$isTee" ]; then
+	tee "${teeArg[@]}" -- "$targetFilespec"
+    else
+	eval "cat $redir \"\$targetFilespec\""
+    fi
+}
+
+eval "${commands:+{ { }${commands}${commands:+; \} $capturePrefix | }capture${commands:+; \} $captureSuffix}"
