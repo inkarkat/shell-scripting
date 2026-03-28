@@ -5,7 +5,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-a|--append] [--sudo] [--] TARGET-FILE [-?|-h|--help]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '[-a|--append] [--sudo] [-t|--tee] [--] TARGET-FILE [-?|-h|--help]'
 }
 printUsage()
 {
@@ -30,21 +30,27 @@ HELPDESCRIPTION
     --sudo		Create with sudo unless the target directory is
 			writeable by the current user or we're already running
 			as the superuser.
+    --tee|-t		Also print the input in addition to putting it into
+			TARGET-FILE. This then works like tee, but with
+			auto-creation of missing parent directories.
 HELPTEXT
 }
 
 sudoArg=
+sudoTeeRedir='>/dev/null'
 redir='>'
+isTee=
 typeset -a teeArg=()
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	    shift; printLongUsage "$0"; exit 0;;
-	--append|-a)	    teeArg=("$1"); shift; redir='>>';;
-	--sudo)		    shift; sudoArg="${SUDO:-sudo}";;
-	--)		    shift; break;;
-	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
-	*)		    break;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--append|-a)	teeArg=("$1"); shift; redir='>>';;
+	--sudo)		shift; sudoArg="${SUDO:-sudo}";;
+	--tee|-t)	shift; isTee=t; sudoTeeRedir='';;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
+			;;
     esac
 done
 if [ $# -ne 1 ]; then
@@ -59,7 +65,9 @@ targetDirspec="$(dirname -- "$targetFilespec")"
 [ -d "$targetDirspec" ] || $SUDO mkdir --parents -- "$targetDirspec" || exit $?
 
 if [ -n "$SUDO" ]; then
-    $SUDO tee "${teeArg[@]}" -- "$targetFilespec" >/dev/null
+    eval '$SUDO tee "${teeArg[@]}" -- "$targetFilespec"' "$sudoTeeRedir"
+elif [ "$isTee" ]; then
+    tee "${teeArg[@]}" -- "$targetFilespec"
 else
     eval "cat $redir \"\$targetFilespec\""
 fi
