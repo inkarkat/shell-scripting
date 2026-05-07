@@ -13,12 +13,20 @@ addAliasSupport inputToArg \
     'r' \
     'run-if-empty'
 
-eval "$(runWithPrompt --addAliasSupport linesToArg \
-    '' \
-    '' \
+eval "$(runWithPrompt --addAliasSupport linesFilter \
+    'r1' \
+    'run-if-empty|allow-output|suppress-output' \
     '' \
     'between-command|progress'
 )"
+
+eval "$(runWithPrompt --addAliasSupport linesToArg \
+    'r' \
+    'run-if-empty' \
+    '' \
+    'between-command|progress'
+)"
+
 addAliasSupport linesToArgs \
     'r' \
     'run-if-empty'
