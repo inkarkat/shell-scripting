@@ -185,9 +185,9 @@ else
     count=$(database --query "$clientId" --columns SECTION_COUNTER) || exit 3
 fi
 : ${count:=1}
-section="$($accessor $count)"; status=$?
+section="$($accessor $count; status=$?; printf @; exit $status)"; status=$?; section="${section%@}"
 case $status in
-    0)	printf '%s\n' "$section";;
+    0)	printf %s "$section";;
     4)	;;  # Empty section.
     2)	cleanup; exit 1;;    # sed / AWK fatal error (to read the file); error already printed.
     1)	if [ ! "$isWrap" ]; then
@@ -207,9 +207,9 @@ case $status in
 	    count=1
 	fi
 
-	section="$($accessor $count)"; status=$?
+	section="$($accessor $count; status=$?; printf @; exit $status)"; status=$?; section="${section%@}"
 	case $status in
-	    0)	printf '%s\n' "$section";;
+	    0)	printf %s "$section";;
 	    4)	;;  # Empty section.
 	    2)	cleanup; exit 1;;    # sed / AWK fatal error (to read the file); error already printed.
 	    1)	exit 3;;    # There should always be a first section.

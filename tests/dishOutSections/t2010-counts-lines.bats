@@ -3,14 +3,14 @@
 load fixture
 
 @test "print random existing line counts" {
-    run -0 dishOutSections --lines --count 1 "${BATS_TEST_DIRNAME}/numbers-lines.txt"
-    assert_output 'one'
+    runWithFullOutput -0 dishOutSections --lines --count 1 "${BATS_TEST_DIRNAME}/numbers-lines.txt"
+    assert_output $'one\n'
 
-    run -0 dishOutSections --lines --count 2 "${BATS_TEST_DIRNAME}/numbers-lines.txt"
-    assert_output 'two'
+    runWithFullOutput -0 dishOutSections --lines --count 2 "${BATS_TEST_DIRNAME}/numbers-lines.txt"
+    assert_output $'two\n'
 
-    run -0 dishOutSections --lines --count 12 "${BATS_TEST_DIRNAME}/numbers-lines.txt"
-    assert_output 'twelve'
+    runWithFullOutput -0 dishOutSections --lines --count 12 "${BATS_TEST_DIRNAME}/numbers-lines.txt"
+    assert_output $'twelve\n'
 
     runWithFullOutput -0 dishOutSections --lines --count 7 "${BATS_TEST_DIRNAME}/input.txt"
     assert_output $'\n'

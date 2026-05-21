@@ -3,28 +3,52 @@
 load fixture
 
 @test "print random existing counts" {
-    run -0 dishOutSections --count 1 "${BATS_TEST_DIRNAME}/input.txt"
-    assert_output $'first section\nwith some text'
+    runWithFullOutput -0 dishOutSections --count 1 "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output $'first section\nwith some text\n'
 
-    run -0 dishOutSections --count 2 "${BATS_TEST_DIRNAME}/input.txt"
-    assert_output 'second section, single line'
+    runWithFullOutput -0 dishOutSections --count 2 "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output $'second section, single line\n'
 
-    run -0 dishOutSections --count 6 "${BATS_TEST_DIRNAME}/input.txt"
-    assert_output 'last section'
+    runWithFullOutput -0 dishOutSections --count 6 "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output $'last section\n'
 
-    run -0 dishOutSections --count 5 "${BATS_TEST_DIRNAME}/input.txt"
-    assert_output 'fifth section after empty fourth section'
+    runWithFullOutput -0 dishOutSections --count 5 "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output $'fifth section after empty fourth section\n'
 
-    run -0 dishOutSections --count 3 "${BATS_TEST_DIRNAME}/input.txt"
-    assert_output - <<'EOF'
-third section with empty lines
-
-
-the end
-EOF
+    runWithFullOutput -0 dishOutSections --count 3 "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output $'third section with empty lines\n\n\nthe end\n'
 
     runWithFullOutput -0 dishOutSections --count 4 "${BATS_TEST_DIRNAME}/input.txt"
     assert_output ''
+}
+
+@test "leading empty lines in a section are preserved" {
+    runWithFullOutput -0 dishOutSections --count 2 <(cat <<'EOF'
+first section
+---
+
+
+third line, first non-empty line of second section
+third and last line
+---
+third section
+EOF
+)
+    assert_output $'\n\nthird line, first non-empty line of second section\nthird and last line\n'
+}
+
+@test "trailing empty lines in a section are preserved" {
+    runWithFullOutput -0 dishOutSections --count 2 <(cat <<'EOF'
+first section
+---
+first line, first non-empty line of second section
+second line, one non-empty line follows
+
+---
+third section
+EOF
+)
+    assert_output $'first line, first non-empty line of second section\nsecond line, one non-empty line follows\n\n'
 }
 
 @test "printing of non-existing section returns 4" {
