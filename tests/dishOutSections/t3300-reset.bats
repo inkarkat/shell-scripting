@@ -2,7 +2,7 @@
 
 load fixture
 
-@test "directly reset after first second" {
+@test "directly reset after first section" {
     run -0 dishOutSections --reset "${BATS_TEST_DIRNAME}/input.txt"
     assert_output $'first section\nwith some text'
 
@@ -28,7 +28,7 @@ load fixture
 }
 
 @test "seek beyond last section with wrap and reset" {
-    run -0 dishOutSections --seek $((6 + 5)) --wrap --reset "${BATS_TEST_DIRNAME}/input.txt"
+    run -0 dishOutSections --seek $((SECTION_NUM + 5)) --wrap --reset "${BATS_TEST_DIRNAME}/input.txt"
     assert_output 'fifth section after empty fourth section'
 
     run -0 dishOutSections "${BATS_TEST_DIRNAME}/input.txt"
