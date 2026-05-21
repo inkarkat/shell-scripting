@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, they can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[--lines|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [-R|--reset] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [-R|--reset] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
 }
 printUsage()
 {
@@ -29,6 +29,11 @@ HELPDESCRIPTION
     --lines			Address individual lines instead of pattern-
 				-separated sections. Each line is a section on
 				its own.
+    --blocks LINE-CNT		Address groups of LINE-CNT lines as sections
+				instead of pattern-separated sections. LINE-CNT
+				lines are a section on their own. The last
+				section may contain fewer lines if the total
+				line count is not a multiple of LINE-CNT.
     --section-separator|-S PATTERN
 				Lines matching PATTERN separate the individual
 				sections within the FILE. These lines are not
@@ -71,6 +76,7 @@ HELPTEXT
 }
 
 accessor=printSection
+blockLineCnt=
 separatorPattern='^-{2,3}$'
 typeset -a databaseArgs=()
 requestedCount=
@@ -84,6 +90,7 @@ do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
 	--lines)	shift; accessor=printLine;;
+	--blocks)	shift; accessor=printBlock; blockLineCnt="${1:?}"; shift;;
 	--section-separator|-S)
 			shift; separatorPattern="${1:?}"; shift;;
 	--basedir|--base-type)
@@ -148,6 +155,26 @@ printLine()
     sed -n -e "${targetLineNr}{ p; q; }" -e '${ =; q 1; }' -- "${filespec:?}"
 }
 
+printBlock()
+{
+    local targetBlockNr="${1:?}"; shift
+    if [ -e "${filespec:?}" -a ! -s "${filespec:?}" ]; then
+	if [ $targetBlockNr -eq 1 ]; then
+	    return 4
+	else
+	    echo 1
+	    return 1
+	fi
+    fi
+
+    # Use the hold space as a flag whether an (incomplete) block has been found.
+    sed -n \
+	-e "$(((targetBlockNr - 1) * blockLineCnt + 1)),$((targetBlockNr * blockLineCnt)){ H; p; }" \
+	-e "$((targetBlockNr * blockLineCnt))q" \
+	-e '${ x; /./{ x; q 0; }; x; =; q 1; }' \
+	-- "${filespec:?}"
+}
+
 printSection()
 {
     local targetSection="${1:?}"; shift
@@ -200,7 +227,7 @@ case $status in
 
 	if [ -n "$requestedCount" ]; then
 	    # Wrap around the passed count based on how many sections are available.
-	    actualTotal=$section
+	    actualTotal=$section; [ -n "$blockLineCnt" ] && actualTotal=$((actualTotal / blockLineCnt))
 	    count=$(((requestedCount - 1) % actualTotal + 1))
 	else
 	    # Reset to the first section when incrementing.

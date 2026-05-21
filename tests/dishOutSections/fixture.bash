@@ -8,6 +8,7 @@ export XDG_DATA_HOME="$BATS_TMPDIR"
 
 readonly SECTION_NUM=6
 readonly LINE_NUM=12
+readonly BLOCK_NUM=6
 
 fixtureSetup()
 {
