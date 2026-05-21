@@ -23,7 +23,7 @@ third section with empty lines
 the end
 EOF
 
-    run -0 dishOutSections --count 4 "${BATS_TEST_DIRNAME}/input.txt"
+    runWithFullOutput -0 dishOutSections --count 4 "${BATS_TEST_DIRNAME}/input.txt"
     assert_output ''
 }
 
@@ -32,7 +32,7 @@ EOF
     assert_output ''
 }
 
-@test "printing of non-existing file returns 1" {
+@test "printing of section of non-existing file returns 1" {
     LC_ALL=C run -1 dishOutSections --count 99 "${BATS_TEST_DIRNAME}/doesNotExist"
     assert_output -e 'fatal: cannot open file .* for reading'
 }

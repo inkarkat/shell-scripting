@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, they can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" '[-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [-R|--reset] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--lines|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [-R|--reset] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
 }
 printUsage()
 {
@@ -26,6 +26,9 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
+    --lines			Address individual lines instead of pattern-
+				-separated sections. Each line is a section on
+				its own.
     --section-separator|-S PATTERN
 				Lines matching PATTERN separate the individual
 				sections within the FILE. These lines are not
@@ -67,6 +70,7 @@ EXIT STATUS:
 HELPTEXT
 }
 
+accessor=printSection
 separatorPattern='^-{2,3}$'
 typeset -a databaseArgs=()
 requestedCount=
@@ -79,6 +83,7 @@ while [ $# -ne 0 ]
 do
     case "$1" in
 	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--lines)	shift; accessor=printLine;;
 	--section-separator|-S)
 			shift; separatorPattern="${1:?}"; shift;;
 	--basedir|--base-type)
@@ -128,6 +133,21 @@ cleanup()
 }
 
 
+printLine()
+{
+    local targetLineNr="${1:?}"; shift
+    if [ -e "${filespec:?}" -a ! -s "${filespec:?}" ]; then
+	if [ $targetLineNr -eq 1 ]; then
+	    return 4
+	else
+	    echo 1
+	    return 1
+	fi
+    fi
+
+    sed -n -e "${targetLineNr}{ p; q; }" -e '${ =; q 1; }' -- "${filespec:?}"
+}
+
 printSection()
 {
     local targetSection="${1:?}"; shift
@@ -165,11 +185,11 @@ else
     count=$(database --query "$clientId" --columns SECTION_COUNTER) || exit 3
 fi
 : ${count:=1}
-section="$(printSection $count)"; status=$?
+section="$($accessor $count)"; status=$?
 case $status in
     0)	printf '%s\n' "$section";;
     4)	;;  # Empty section.
-    2)	cleanup; exit 1;;    # AWK fatal error (to read the file); error already printed.
+    2)	cleanup; exit 1;;    # sed / AWK fatal error (to read the file); error already printed.
     1)	if [ ! "$isWrap" ]; then
 	    if [ "$isDelete" ]; then
 		rm --force -- "$filespec" || exit 3
@@ -187,11 +207,11 @@ case $status in
 	    count=1
 	fi
 
-	section="$(printSection $count)"; status=$?
+	section="$($accessor $count)"; status=$?
 	case $status in
 	    0)	printf '%s\n' "$section";;
 	    4)	;;  # Empty section.
-	    2)	cleanup; exit 1;;    # AWK fatal error (to read the file); error already printed.
+	    2)	cleanup; exit 1;;    # sed / AWK fatal error (to read the file); error already printed.
 	    1)	exit 3;;    # There should always be a first section.
 	    *)	printf >&2 'ASSERT: Unhandled exit status: %s\n' "$status"; exit 3;;
 	esac
