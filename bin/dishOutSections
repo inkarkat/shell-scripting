@@ -143,7 +143,7 @@ cleanup()
 printLine()
 {
     local targetLineNr="${1:?}"; shift
-    if [ -e "${filespec:?}" -a ! -s "${filespec:?}" ]; then
+    if [ -f "${filespec:?}" -a ! -s "${filespec:?}" ]; then
 	if [ $targetLineNr -eq 1 ]; then
 	    return 4
 	else
@@ -158,7 +158,7 @@ printLine()
 printBlock()
 {
     local targetBlockNr="${1:?}"; shift
-    if [ -e "${filespec:?}" -a ! -s "${filespec:?}" ]; then
+    if [ -f "${filespec:?}" -a ! -s "${filespec:?}" ]; then
 	if [ $targetBlockNr -eq 1 ]; then
 	    return 4
 	else
