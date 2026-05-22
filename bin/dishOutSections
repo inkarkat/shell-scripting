@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, they can
     # skim the long one.
-    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [--seek-after N] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
+    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [--seek-after [+-]N] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
 }
 printUsage()
 {
@@ -51,9 +51,11 @@ HELPDESCRIPTION
     --seek|-s N			Print the N'th section and change the stored
 				section counter so that the following invocation
 				will continue with the next section.
-    --seek-after N		Set the section counter to N after printing the
-				current section. A following invocation (without
-				--count or --seek) will continue with section N.
+    --seek-after [+-]N		Set the section counter to N / the current
+				section +/- N (where +1 is equivalent to the
+				default increment) after printing the current
+				section. A following invocation (without --count
+				or --seek) will continue that section [+-]N.
     --wrap|-w			Seamlessly reset to the first section once the
 				last section has been reached / wrap around when
 				accessing beyond the last section. By default,
@@ -84,7 +86,7 @@ blockLineCnt=
 separatorPattern='^-{2,3}$'
 typeset -a databaseArgs=()
 requestedCount=
-seekAfterCount=
+seekAfter=
 databaseAction=
 isWrap=
 isDelete=
@@ -101,7 +103,7 @@ do
 			databaseArgs+=("$1" "${2:?}"); shift; shift;;
 	--count|-c)	shift; requestedCount="${1:?}"; shift; databaseAction=:;;
 	--seek|-s)	shift; requestedCount="${1:?}"; shift;;
-	--seek-after)	shift; seekAfterCount="${1:?}"; shift; databaseAction=set;;
+	--seek-after)	shift; seekAfter="${1:?}"; shift; databaseAction=set;;
 	--wrap|-w)	shift; isWrap=t;;
 	--delete-when-exhausted|-D)
 			shift; isDelete=t;;
@@ -134,7 +136,13 @@ increment()
 
 set()
 {
-    database --update "$clientId" --column SECTION_COUNTER=${seekAfterCount:?} || return 3
+    if [[ "${seekAfter:?}" =~ ^[0-9]+$ ]]; then
+	local seekAfterCount="$seekAfter"
+    else
+	local seekAfterCount="$((count $seekAfter))"
+	[ $seekAfterCount -ge 1 ] || seekAfterCount=2147483647	# Turn an invalid negative or zero count into a very large count that effectively results in an exhausted file.
+    fi
+    database --update "$clientId" --column SECTION_COUNTER=$seekAfterCount || return 3
 }
 
 reset()
