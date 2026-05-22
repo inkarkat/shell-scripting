@@ -4,7 +4,9 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, they can
     # skim the long one.
-    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [-R|--reset] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
+    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp]    [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help] ...'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '... [-c|--count N|-s|--seek N] [--seek-after [+-]N] [-w|--wrap|-D|--delete-when-exhausted]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '... -R|--reset|-C|--cleanup'
 }
 printUsage()
 {
@@ -43,6 +45,10 @@ HELPDESCRIPTION
     --basedir DIR               Set the base directory in which the section
 				counters are stored. Defaults to
 				XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+				For testing purposes, it's useful to pass an
+				ephemeral directory here, e.g. \$BATS_TEST_TMPDIR
+				for Bats tests. Otherwise, use -R|--reset to
+				reset the section counter before each test.
     --base-type config|data|runtime|cache|temp
 				Set the base directory based on the passed
 				characterization. The default is "data".
@@ -51,15 +57,24 @@ HELPDESCRIPTION
     --seek|-s N			Print the N'th section and change the stored
 				section counter so that the following invocation
 				will continue with the next section.
-    --reset|-R			Set the section counter back to 1 to that the
-				next invocation will start with the first
-				section again.
+    --seek-after [+-]N		Set the section counter to N / the current
+				section +/- N (where +1 is equivalent to the
+				default increment) after printing the current
+				section. A following invocation (without --count
+				or --seek) will continue that section [+-]N.
     --wrap|-w			Seamlessly reset to the first section once the
 				last section has been reached / wrap around when
 				accessing beyond the last section. By default,
 				the command will simply fail.
     --delete-when-exhausted|-D	Remove FILE if the last section had been reached
 				and no more sections are available.
+    --reset|-R			Reset the section counter to the first section
+				without obtaining any section.
+    --cleanup|-C		Delete the stored section counter for FILE (and
+				all clients) when you're completely done with
+				operating on sections. Same effect as --reset,
+				but also removes the tracking file itself and
+				thus any trace of the section counters.
     --for|-f CLIENT-ID		Store the section counter for the CLIENT-ID,
 				allowing parallel iterations of the same FILE.
 Note: You can override the name for FILE that is used for tracking the section
@@ -84,8 +99,9 @@ blockLineCnt=
 separatorPattern='^-{2,3}$'
 typeset -a databaseArgs=()
 requestedCount=
-unset databaseAction
-isReset=
+seekAfter=
+databaseAction=
+standaloneDatabaseAction=
 isWrap=
 isDelete=
 clientId=default
@@ -99,19 +115,20 @@ do
 			shift; separatorPattern="${1:?}"; shift;;
 	--basedir|--base-type)
 			databaseArgs+=("$1" "${2:?}"); shift; shift;;
-	--count|-c)	shift; requestedCount="${1:?}"; shift; databaseAction='';;
+	--count|-c)	shift; requestedCount="${1:?}"; shift; databaseAction=:;;
 	--seek|-s)	shift; requestedCount="${1:?}"; shift;;
-	--reset|-R)	shift; isReset=t;;
+	--seek-after)	shift; seekAfter="${1:?}"; shift; databaseAction=set;;
 	--wrap|-w)	shift; isWrap=t;;
 	--delete-when-exhausted|-D)
 			shift; isDelete=t;;
+	--reset|-R)	shift; standaloneDatabaseAction=reset;;
+	--cleanup|-C)	shift; standaloneDatabaseAction=cleanup;;
 	--for|-f)	shift; clientId="${1:?}"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
-[ "$isReset" ] && databaseAction=reset
 if [ $# -ne 1 ]; then
     [ $# -eq 0 ] \
 	&& echo 'ERROR: No FILE passed.' \
@@ -133,6 +150,17 @@ increment()
     database --update "$clientId" --column SECTION_COUNTER=$((count + 1)) || return 3
 }
 
+set()
+{
+    if [[ "${seekAfter:?}" =~ ^[0-9]+$ ]]; then
+	local seekAfterCount="$seekAfter"
+    else
+	local seekAfterCount="$((count $seekAfter))"
+	[ $seekAfterCount -ge 1 ] || seekAfterCount=2147483647	# Turn an invalid negative or zero count into a very large count that effectively results in an exhausted file.
+    fi
+    database --update "$clientId" --column SECTION_COUNTER=$seekAfterCount || return 3
+}
+
 reset()
 {
     database --update "$clientId" --column SECTION_COUNTER=1 || return 3
@@ -141,8 +169,13 @@ reset()
 cleanup()
 {
     database --drop
+    databaseAction=:  # Avoid running a database action again in the main flow.
 }
 
+if [ -n "$standaloneDatabaseAction" ]; then
+    $standaloneDatabaseAction
+    exit $?
+fi
 
 printLine()
 {
@@ -226,6 +259,7 @@ case $status in
 		rm --force -- "$filespec" || exit 3
 		cleanup
 	    fi
+	    $databaseAction || exit $?
 	    exit 4
 	fi
 
@@ -249,4 +283,4 @@ case $status in
 	;;
     *)	printf >&2 'ASSERT: Unhandled exit status: %s\n' "$status"; exit 3;;
 esac
-${databaseAction=increment}
+${databaseAction:-increment}
