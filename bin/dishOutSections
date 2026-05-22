@@ -6,7 +6,7 @@ printShortUsage()
     # skim the long one.
     printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp]    [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help] ...'
     printf 'Usage: %q %s\n' "$(basename "$1")" '... [-c|--count N|-s|--seek N] [--seek-after [+-]N] [-w|--wrap|-D|--delete-when-exhausted]'
-    printf 'Usage: %q %s\n' "$(basename "$1")" '... -R|--reset'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '... -R|--reset|-C|--cleanup'
 }
 printUsage()
 {
@@ -70,6 +70,11 @@ HELPDESCRIPTION
 				and no more sections are available.
     --reset|-R			Reset the section counter to the first section
 				without obtaining any section.
+    --cleanup|-C		Delete the stored section counter for FILE (and
+				all clients) when you're completely done with
+				operating on sections. Same effect as --reset,
+				but also removes the tracking file itself and
+				thus any trace of the section counters.
     --for|-f CLIENT-ID		Store the section counter for the CLIENT-ID,
 				allowing parallel iterations of the same FILE.
 Note: You can override the name for FILE that is used for tracking the section
@@ -117,6 +122,7 @@ do
 	--delete-when-exhausted|-D)
 			shift; isDelete=t;;
 	--reset|-R)	shift; standaloneDatabaseAction=reset;;
+	--cleanup|-C)	shift; standaloneDatabaseAction=cleanup;;
 	--for|-f)	shift; clientId="${1:?}"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
