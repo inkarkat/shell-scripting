@@ -17,7 +17,7 @@ load fixture
 }
 
 @test "leading empty lines in a block are preserved" {
-    cat >"${BATS_TMPDIR}/file.txt" <<'EOF'
+    runWithFullOutput -0 dishOutSections --blocks 3 --count 2 <(cat <<'EOF'
 the
 first
 block
@@ -28,12 +28,12 @@ the
 third
 block
 EOF
-    runWithFullOutput -0 dishOutSections --blocks 3 --count 2 "${BATS_TMPDIR}/file.txt"
+)
     assert_output $'\n\nthird line, first non-empty line of second block\n'
 }
 
 @test "trailing empty lines in a block are preserved" {
-    cat >"${BATS_TMPDIR}/file.txt" <<'EOF'
+    runWithFullOutput -0 dishOutSections --blocks 2 --count 2 <(cat <<'EOF'
 first
 block
 first line of second block, one non-empty line follows
@@ -41,7 +41,7 @@ first line of second block, one non-empty line follows
 third
 block
 EOF
-    runWithFullOutput -0 dishOutSections --blocks 2 --count 2 "${BATS_TMPDIR}/file.txt"
+)
     assert_output $'first line of second block, one non-empty line follows\n\n'
 }
 
