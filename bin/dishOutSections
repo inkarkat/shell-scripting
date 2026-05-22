@@ -4,7 +4,9 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, they can
     # skim the long one.
-    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp] [-c|--count N|-s|--seek N] [--seek-after [+-]N] [-w|--wrap|-D|--delete-when-exhausted] [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help]'
+    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp]    [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help] ...'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '... [-c|--count N|-s|--seek N] [--seek-after [+-]N] [-w|--wrap|-D|--delete-when-exhausted]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" '... -R|--reset'
 }
 printUsage()
 {
@@ -43,6 +45,10 @@ HELPDESCRIPTION
     --basedir DIR               Set the base directory in which the section
 				counters are stored. Defaults to
 				XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+				For testing purposes, it's useful to pass an
+				ephemeral directory here, e.g. \$BATS_TEST_TMPDIR
+				for Bats tests. Otherwise, use -R|--reset to
+				reset the section counter before each test.
     --base-type config|data|runtime|cache|temp
 				Set the base directory based on the passed
 				characterization. The default is "data".
@@ -62,6 +68,8 @@ HELPDESCRIPTION
 				the command will simply fail.
     --delete-when-exhausted|-D	Remove FILE if the last section had been reached
 				and no more sections are available.
+    --reset|-R			Reset the section counter to the first section
+				without obtaining any section.
     --for|-f CLIENT-ID		Store the section counter for the CLIENT-ID,
 				allowing parallel iterations of the same FILE.
 Note: You can override the name for FILE that is used for tracking the section
@@ -88,6 +96,7 @@ typeset -a databaseArgs=()
 requestedCount=
 seekAfter=
 databaseAction=
+standaloneDatabaseAction=
 isWrap=
 isDelete=
 clientId=default
@@ -107,6 +116,7 @@ do
 	--wrap|-w)	shift; isWrap=t;;
 	--delete-when-exhausted|-D)
 			shift; isDelete=t;;
+	--reset|-R)	shift; standaloneDatabaseAction=reset;;
 	--for|-f)	shift; clientId="${1:?}"; shift;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
@@ -156,6 +166,10 @@ cleanup()
     databaseAction=:  # Avoid running a database action again in the main flow.
 }
 
+if [ -n "$standaloneDatabaseAction" ]; then
+    $standaloneDatabaseAction
+    exit $?
+fi
 
 printLine()
 {

@@ -159,7 +159,6 @@ load fixture
 }
 
 @test "three clients seeking and resetting" {
-    skip
     run -0 dishOutSections "${BATS_TEST_DIRNAME}/numbers.txt"
     assert_output 'one'
 
@@ -170,10 +169,10 @@ load fixture
     assert_output 'eleven'
 
     run -0 dishOutSections --for B --reset "${BATS_TEST_DIRNAME}/numbers.txt"
-    assert_output 'ten'
+    assert_output ''
 
     run -0 dishOutSections --for A --reset "${BATS_TEST_DIRNAME}/numbers.txt"
-    assert_output 'twelve'
+    assert_output ''
 
     run -0 dishOutSections --for A "${BATS_TEST_DIRNAME}/numbers.txt"
     assert_output 'one'
@@ -182,7 +181,7 @@ load fixture
     assert_output 'one'
 
     run -0 dishOutSections --reset "${BATS_TEST_DIRNAME}/numbers.txt"
-    assert_output 'two'
+    assert_output ''
 
     run -0 dishOutSections "${BATS_TEST_DIRNAME}/numbers.txt"
     assert_output 'one'
