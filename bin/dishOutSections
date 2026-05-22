@@ -85,7 +85,7 @@ separatorPattern='^-{2,3}$'
 typeset -a databaseArgs=()
 requestedCount=
 seekAfterCount=
-databaseAction=increment
+databaseAction=
 isWrap=
 isDelete=
 clientId=default
@@ -231,6 +231,7 @@ case $status in
 		rm --force -- "$filespec" || exit 3
 		cleanup
 	    fi
+	    $databaseAction || exit $?
 	    exit 4
 	fi
 
@@ -254,4 +255,4 @@ case $status in
 	;;
     *)	printf >&2 'ASSERT: Unhandled exit status: %s\n' "$status"; exit 3;;
 esac
-$databaseAction
+${databaseAction:-increment}

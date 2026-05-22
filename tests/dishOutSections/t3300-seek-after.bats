@@ -33,3 +33,11 @@ load fixture
     run -0 dishOutSections "${BATS_TEST_DIRNAME}/input.txt"
     assert_output 'second section, single line'
 }
+
+@test "seek beyond last section still executes seek after" {
+    run -4 dishOutSections --seek $((SECTION_NUM + 1)) --seek-after 2 "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output ''
+
+    run -0 dishOutSections "${BATS_TEST_DIRNAME}/input.txt"
+    assert_output 'second section, single line'
+}
