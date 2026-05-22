@@ -139,6 +139,7 @@ reset()
 cleanup()
 {
     database --drop
+    databaseAction=:  # Avoid running a database action again in the main flow.
 }
 
 
