@@ -84,8 +84,7 @@ blockLineCnt=
 separatorPattern='^-{2,3}$'
 typeset -a databaseArgs=()
 requestedCount=
-unset databaseAction
-isReset=
+databaseAction=increment
 isWrap=
 isDelete=
 clientId=default
@@ -99,9 +98,9 @@ do
 			shift; separatorPattern="${1:?}"; shift;;
 	--basedir|--base-type)
 			databaseArgs+=("$1" "${2:?}"); shift; shift;;
-	--count|-c)	shift; requestedCount="${1:?}"; shift; databaseAction='';;
+	--count|-c)	shift; requestedCount="${1:?}"; shift; databaseAction=:;;
 	--seek|-s)	shift; requestedCount="${1:?}"; shift;;
-	--reset|-R)	shift; isReset=t;;
+	--reset|-R)	shift; databaseAction=reset;;
 	--wrap|-w)	shift; isWrap=t;;
 	--delete-when-exhausted|-D)
 			shift; isDelete=t;;
@@ -111,7 +110,6 @@ do
 	*)		break;;
     esac
 done
-[ "$isReset" ] && databaseAction=reset
 if [ $# -ne 1 ]; then
     [ $# -eq 0 ] \
 	&& echo 'ERROR: No FILE passed.' \
@@ -249,4 +247,4 @@ case $status in
 	;;
     *)	printf >&2 'ASSERT: Unhandled exit status: %s\n' "$status"; exit 3;;
 esac
-${databaseAction=increment}
+$databaseAction
