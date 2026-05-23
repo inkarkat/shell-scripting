@@ -138,7 +138,7 @@ if [ $# -ne 1 ]; then
     exit 2
 fi >&2
 filespec="${1:?}"; shift
-filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-filespec}")" || exit 3
+filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-$filespec}")" || exit 3
 
 database()
 {
