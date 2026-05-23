@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, they can
     # skim the long one.
-    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp]    [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help] ...'
+    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp]    [-f|--for CLIENT-ID] [--] -|FILE [-?|-h|--help] ...'
     printf 'Usage: %q %s\n' "$(basename "$1")" '... [-c|--count N|-s|--seek N] [--seek-after [+-]N] [-w|--wrap|-D|--delete-when-exhausted]'
     printf 'Usage: %q %s\n' "$(basename "$1")" '... -R|--reset|-C|--cleanup'
 }
@@ -20,7 +20,7 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Print consecutive sections of a source file on each invocation.
+Print consecutive sections of a source FILE / stdin on each invocation.
 Allows to use a single text file as a source for different outputs for the same
 invocation, e.g. for mocking a command in an automated test.
 HELPDESCRIPTION
@@ -94,6 +94,7 @@ EXIT STATUS:
 HELPTEXT
 }
 
+contents=
 accessor=printSection
 blockLineCnt=
 separatorPattern='^-{2,3}$'
@@ -124,21 +125,26 @@ do
 	--reset|-R)	shift; standaloneDatabaseAction=reset;;
 	--cleanup|-C)	shift; standaloneDatabaseAction=cleanup;;
 	--for|-f)	shift; clientId="${1:?}"; shift;;
+	-)		shift; contents="$(</dev/stdin)"; [ -n "$contents" ] || exit 4;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
-if [ $# -ne 1 ]; then
-    [ $# -eq 0 ] \
-	&& echo 'ERROR: No FILE passed.' \
-	|| echo 'ERROR: Need one FILE.'
-    echo
-    printUsage "$0"
-    exit 2
-fi >&2
-filespec="${1:?}"; shift
-filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-$filespec}")" || exit 3
+if [ -n "$contents" ]; then
+    filespecAsName="${DISHOUTSECTIONS_FILENAME:-$(sha256sum -- <<<"$contents")}" || exit 3
+else
+    if [ $# -ne 1 ]; then
+	[ $# -eq 0 ] \
+	    && echo 'ERROR: No FILE passed.' \
+	    || echo 'ERROR: Need one FILE.'
+	echo
+	printUsage "$0"
+	exit 2
+    fi >&2
+    filespec="${1:?}"; shift
+    filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-$filespec}")" || exit 3
+fi
 
 database()
 {
@@ -179,12 +185,16 @@ fi
 
 runWithContents()
 {
-    "$@" "${filespec:?}"
+    if [ -n "$contents" ]; then
+	"$@" <<<"$contents"
+    else
+	"$@" "${filespec:?}"
+    fi
 }
 printViaSed()
 {
     local targetNr="${1:?}"; shift
-    if [ -f "${filespec:?}" -a ! -s "${filespec:?}" ]; then
+    if [ -n "$filespec" -a -f "$filespec" -a ! -s "$filespec" ]; then
 	if [ $targetNr -eq 1 ]; then
 	    return 4
 	else
@@ -256,7 +266,7 @@ case $status in
     2)	cleanup; exit 1;;    # sed / AWK fatal error (to read the file); error already printed.
     1)	if [ ! "$isWrap" ]; then
 	    if [ "$isDelete" ]; then
-		rm --force -- "$filespec" || exit 3
+		[ -z "$filespec" ] || rm --force -- "$filespec" || exit 3
 		cleanup
 	    fi
 	    $databaseAction || exit $?

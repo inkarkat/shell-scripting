@@ -3,7 +3,7 @@
 printUsage()
 {
     dishOutSections --help 2>&1 | sed \
-	-e '1s#^.*$#Print consecutive lines of a source file on each invocation.#' \
+	-e '1s#^.*$#Print consecutive lines of a source FILE / stdin on each invocation.#' \
 	-e 's/\([[:space:]]\)section/\1line/g' \
 	-e '/^ *\(--lines\|--blocks\|--section-separator|-S\)/b removeOptionLoop' \
 	-e '/^Usage:$/N' -e '/\(^\|\n\)Usage: */{ s/\(^\|\n\)\(Usage: *\)\?\([^ |]\+ \)*dishOutSections /\1\2[DISHOUTLINES_FILENAME=NAME] '"$(basename "$1")"' /; s/ \[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN\]//; }' \
