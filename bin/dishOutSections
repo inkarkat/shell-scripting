@@ -4,7 +4,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, they can
     # skim the long one.
-    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp]    [-f|--for CLIENT-ID] [--] FILE [-?|-h|--help] ...'
+    printf 'Usage: [DISHOUTSECTIONS_FILENAME=NAME] %q %s\n' "$(basename "$1")" '[--lines|--blocks LINE-CNT|-S|--section-separator PATTERN] [--basedir DIR|--base-type config|data|runtime|cache|temp]    [-f|--for CLIENT-ID] [--] -|FILE [-?|-h|--help] ...'
     printf 'Usage: %q %s\n' "$(basename "$1")" '... [-c|--count N|-s|--seek N] [--seek-after [+-]N] [-w|--wrap|-D|--delete-when-exhausted]'
     printf 'Usage: %q %s\n' "$(basename "$1")" '... -R|--reset|-C|--cleanup'
 }
@@ -20,7 +20,7 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Print consecutive sections of a source file on each invocation.
+Print consecutive sections of a source FILE / stdin on each invocation.
 Allows to use a single text file as a source for different outputs for the same
 invocation, e.g. for mocking a command in an automated test.
 HELPDESCRIPTION
@@ -78,8 +78,9 @@ HELPDESCRIPTION
     --for|-f CLIENT-ID		Store the section counter for the CLIENT-ID,
 				allowing parallel iterations of the same FILE.
 Note: You can override the name for FILE that is used for tracking the section
-counters via the DISHOUTSECTIONS_FILENAME environment variable. This is
-important when FILE isn't a regular file, e.g. a process substitution.
+counters via the DISHOUTSECTIONS_FILENAME environment variable. For non-regular
+files (e.g. a process substitution) and when reading from stdin, the name is
+derived from the contents.
 
 RELATED COMMANDS:
 - csplit splits a file into many small ones, which could then also be iterated
@@ -94,6 +95,7 @@ EXIT STATUS:
 HELPTEXT
 }
 
+contents=
 accessor=printSection
 blockLineCnt=
 separatorPattern='^-{2,3}$'
@@ -124,21 +126,33 @@ do
 	--reset|-R)	shift; standaloneDatabaseAction=reset;;
 	--cleanup|-C)	shift; standaloneDatabaseAction=cleanup;;
 	--for|-f)	shift; clientId="${1:?}"; shift;;
+	-)		shift; contents="$(</dev/stdin)"; [ -n "$contents" ] || exit 4;;
 	--)		shift; break;;
 	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		break;;
     esac
 done
-if [ $# -ne 1 ]; then
-    [ $# -eq 0 ] \
-	&& echo 'ERROR: No FILE passed.' \
-	|| echo 'ERROR: Need one FILE.'
-    echo
-    printUsage "$0"
-    exit 2
-fi >&2
-filespec="${1:?}"; shift
-filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-$filespec}")" || exit 3
+if [ -n "$contents" ]; then
+    filespecAsName="${DISHOUTSECTIONS_FILENAME:-$(sha256sum <<<"$contents")}" || exit 3
+else
+    if [ $# -ne 1 ]; then
+	[ $# -eq 0 ] \
+	    && echo 'ERROR: No FILE passed.' \
+	    || echo 'ERROR: Need one FILE.'
+	echo
+	printUsage "$0"
+	exit 2
+    fi >&2
+
+    filespec="${1:?}"; shift
+    if [ ! -e "$filespec" -o -f "$filespec" ]; then
+	filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-$filespec}")" || exit 3
+    else
+	contents="$(<"$filespec")" || exit 1
+	[ -n "$contents" ] || exit 4
+	filespecAsName="${DISHOUTSECTIONS_FILENAME:-$(sha256sum <<<"$contents")}" || exit 3
+    fi
+fi
 
 database()
 {
@@ -177,11 +191,19 @@ if [ -n "$standaloneDatabaseAction" ]; then
     exit $?
 fi
 
-printLine()
+runWithContents()
 {
-    local targetLineNr="${1:?}"; shift
-    if [ -f "${filespec:?}" -a ! -s "${filespec:?}" ]; then
-	if [ $targetLineNr -eq 1 ]; then
+    if [ -n "$contents" ]; then
+	"$@" <<<"$contents"
+    else
+	"$@" "${filespec:?}"
+    fi
+}
+printViaSed()
+{
+    local targetNr="${1:?}"; shift
+    if [ -n "$filespec" -a -f "$filespec" -a ! -s "$filespec" ]; then
+	if [ $targetNr -eq 1 ]; then
 	    return 4
 	else
 	    echo 1
@@ -189,33 +211,29 @@ printLine()
 	fi
     fi
 
-    sed -n -e "${targetLineNr}{ p; q; }" -e '${ =; q 1; }' -- "${filespec:?}"
+    runWithContents sed -n "$@" --
+}
+
+printLine()
+{
+    local targetLineNr="${1:?}"; shift
+    printViaSed "$targetLineNr" -e "${targetLineNr}{ p; q; }" -e '${ =; q 1; }'
 }
 
 printBlock()
 {
     local targetBlockNr="${1:?}"; shift
-    if [ -f "${filespec:?}" -a ! -s "${filespec:?}" ]; then
-	if [ $targetBlockNr -eq 1 ]; then
-	    return 4
-	else
-	    echo 1
-	    return 1
-	fi
-    fi
-
     # Use the hold space as a flag whether an (incomplete) block has been found.
-    sed -n \
+    printViaSed "$targetBlockNr" \
 	-e "$(((targetBlockNr - 1) * blockLineCnt + 1)),$((targetBlockNr * blockLineCnt)){ H; p; }" \
 	-e "$((targetBlockNr * blockLineCnt))q" \
-	-e '${ x; /./{ x; q 0; }; x; =; q 1; }' \
-	-- "${filespec:?}"
+	-e '${ x; /./{ x; q 0; }; x; =; q 1; }'
 }
 
 printSection()
 {
     local targetSection="${1:?}"; shift
-    awk \
+    runWithContents awk \
 	-v "separatorPattern=${separatorPattern//\\/\\\\}" \
 	-v "targetSection=$targetSection" \
 '
@@ -240,7 +258,7 @@ END {
 	exit(4)
     }
 }
-' "${filespec:?}"
+'
 }
 
 if [ -n "$requestedCount" ]; then
@@ -256,7 +274,7 @@ case $status in
     2)	cleanup; exit 1;;    # sed / AWK fatal error (to read the file); error already printed.
     1)	if [ ! "$isWrap" ]; then
 	    if [ "$isDelete" ]; then
-		rm --force -- "$filespec" || exit 3
+		[ -z "$filespec" ] || rm --force -- "$filespec" || exit 3
 		cleanup
 	    fi
 	    $databaseAction || exit $?
