@@ -177,11 +177,11 @@ if [ -n "$standaloneDatabaseAction" ]; then
     exit $?
 fi
 
-printLine()
+printViaSed()
 {
-    local targetLineNr="${1:?}"; shift
+    local targetNr="${1:?}"; shift
     if [ -f "${filespec:?}" -a ! -s "${filespec:?}" ]; then
-	if [ $targetLineNr -eq 1 ]; then
+	if [ $targetNr -eq 1 ]; then
 	    return 4
 	else
 	    echo 1
@@ -189,27 +189,23 @@ printLine()
 	fi
     fi
 
-    sed -n -e "${targetLineNr}{ p; q; }" -e '${ =; q 1; }' -- "${filespec:?}"
+    sed -n "$@" -- "${filespec:?}"
+}
+
+printLine()
+{
+    local targetLineNr="${1:?}"; shift
+    printViaSed "$targetLineNr" -e "${targetLineNr}{ p; q; }" -e '${ =; q 1; }'
 }
 
 printBlock()
 {
     local targetBlockNr="${1:?}"; shift
-    if [ -f "${filespec:?}" -a ! -s "${filespec:?}" ]; then
-	if [ $targetBlockNr -eq 1 ]; then
-	    return 4
-	else
-	    echo 1
-	    return 1
-	fi
-    fi
-
     # Use the hold space as a flag whether an (incomplete) block has been found.
-    sed -n \
+    printViaSed "$targetBlockNr" \
 	-e "$(((targetBlockNr - 1) * blockLineCnt + 1)),$((targetBlockNr * blockLineCnt)){ H; p; }" \
 	-e "$((targetBlockNr * blockLineCnt))q" \
-	-e '${ x; /./{ x; q 0; }; x; =; q 1; }' \
-	-- "${filespec:?}"
+	-e '${ x; /./{ x; q 0; }; x; =; q 1; }'
 }
 
 printSection()
