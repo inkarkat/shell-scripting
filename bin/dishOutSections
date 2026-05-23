@@ -78,8 +78,9 @@ HELPDESCRIPTION
     --for|-f CLIENT-ID		Store the section counter for the CLIENT-ID,
 				allowing parallel iterations of the same FILE.
 Note: You can override the name for FILE that is used for tracking the section
-counters via the DISHOUTSECTIONS_FILENAME environment variable. This is
-important when FILE isn't a regular file, e.g. a process substitution.
+counters via the DISHOUTSECTIONS_FILENAME environment variable. For non-regular
+files (e.g. a process substitution) and when reading from stdin, the name is
+derived from the contents.
 
 RELATED COMMANDS:
 - csplit splits a file into many small ones, which could then also be iterated
@@ -132,7 +133,7 @@ do
     esac
 done
 if [ -n "$contents" ]; then
-    filespecAsName="${DISHOUTSECTIONS_FILENAME:-$(sha256sum -- <<<"$contents")}" || exit 3
+    filespecAsName="${DISHOUTSECTIONS_FILENAME:-$(sha256sum <<<"$contents")}" || exit 3
 else
     if [ $# -ne 1 ]; then
 	[ $# -eq 0 ] \
@@ -142,8 +143,15 @@ else
 	printUsage "$0"
 	exit 2
     fi >&2
+
     filespec="${1:?}"; shift
-    filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-$filespec}")" || exit 3
+    if [ ! -e "$filespec" -o -f "$filespec" ]; then
+	filespecAsName="$(pathAsFilename --encode -- "${DISHOUTSECTIONS_FILENAME:-$filespec}")" || exit 3
+    else
+	contents="$(<"$filespec")" || exit 1
+	[ -n "$contents" ] || exit 4
+	filespecAsName="${DISHOUTSECTIONS_FILENAME:-$(sha256sum <<<"$contents")}" || exit 3
+    fi
 fi
 
 database()
