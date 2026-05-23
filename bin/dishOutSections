@@ -177,6 +177,10 @@ if [ -n "$standaloneDatabaseAction" ]; then
     exit $?
 fi
 
+runWithContents()
+{
+    "$@" "${filespec:?}"
+}
 printViaSed()
 {
     local targetNr="${1:?}"; shift
@@ -189,7 +193,7 @@ printViaSed()
 	fi
     fi
 
-    sed -n "$@" -- "${filespec:?}"
+    runWithContents sed -n "$@" --
 }
 
 printLine()
@@ -211,7 +215,7 @@ printBlock()
 printSection()
 {
     local targetSection="${1:?}"; shift
-    awk \
+    runWithContents awk \
 	-v "separatorPattern=${separatorPattern//\\/\\\\}" \
 	-v "targetSection=$targetSection" \
 '
@@ -236,7 +240,7 @@ END {
 	exit(4)
     }
 }
-' "${filespec:?}"
+'
 }
 
 if [ -n "$requestedCount" ]; then
