@@ -4,7 +4,7 @@ load fixture
 
 @test "no arguments prints message and usage instructions" {
     run -2 commandWithHiddenId
-    assert_line -n 0 "ERROR: No -c|--command passed."
+    assert_line -n 0 "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\" or --exec SIMPLECOMMAND [...] ;."
     assert_line -n 2 -e '^Usage:'
 }
 
@@ -15,6 +15,6 @@ load fixture
 }
 
 @test "-h prints long usage help" {
-  run -0 commandWithHiddenId -h
+    run -0 commandWithHiddenId -h
     refute_line -n 0 -e '^Usage:'
 }

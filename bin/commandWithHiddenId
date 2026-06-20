@@ -3,6 +3,7 @@ set -o pipefail
 shopt -qs extglob
 
 : ${COMMANDWITHHIDDENID_COMMAND_JOINER=;}
+: ${COMMANDWITHHIDDENID_EXEC_END=;}
 : ${COMMANDWITHHIDDENID_TITLE_MARKER='{}'}
 titleMarker="$COMMANDWITHHIDDENID_TITLE_MARKER"; unset COMMANDWITHHIDDENID_TITLE_MARKER
 
@@ -10,11 +11,13 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-g|--generator GENERATOR] [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [-c ...] [--] \"ID1 TITLE1\" [...] [-?|-h|--help]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-p|--piped] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${COMMANDWITHHIDDENID_EXEC_END} [--exec ...] [-?|-h|--help] ..."
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" "-g|--generator GENERATOR [-f|--filter ''|FILTER] [-p|--piped] -c|--command \"COMMANDLINE\" [-c ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--] \"ID1 TITLE1\" [...]"
     echo
-    printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '--stdin [-p|--piped] -c|--command "COMMANDLINE" [-c ...]'
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -g|--generator GENERATOR [-f|--filter ''|FILTER] "
+    echo
+    printf 'Usage: GENERATOR | %q %s\n' "$(basename "$1")" '... --stdin'
 }
 printUsage()
 {
@@ -39,8 +42,8 @@ print them one per line.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
+    echo
     cat <<HELPTEXT
-
 If TITLE is completely missing (no whitespace separator after ID), ID is used.
 If TITLE is empty, that's an error.
 If no entries are passed, GENERATOR is invoked to generate them. Entries passed
@@ -63,19 +66,35 @@ targetCommands=
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	    shift; printLongUsage "$0"; exit 0;;
-	--stdin)	    shift; isStdin=t;;
-	--generator|-g)	    shift; generator="$1"; shift;;
-	--filter|-f)	    shift; filter="$1"; shift;;
-	--piped|-p)	    shift; isPiped=t; COMMANDWITHHIDDENID_COMMAND_JOINER='|';;
-	--command|-c)	    shift; targetCommands+="${targetCommands:+ $COMMANDWITHHIDDENID_COMMAND_JOINER }$1"; shift;;
-	--)		    shift; break;;
-	-*)		    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
-	*)		    break;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--stdin)	shift; isStdin=t;;
+	--generator|-g)	shift; generator="$1"; shift;;
+	--filter|-f)	shift; filter="$1"; shift;;
+	--piped|-p)	shift; isPiped=t; COMMANDWITHHIDDENID_COMMAND_JOINER='|';;
+	--command|-c)	shift; targetCommands+="${targetCommands:+ $COMMANDWITHHIDDENID_COMMAND_JOINER }$1"; shift;;
+	--exec)		shift
+			cmd=
+			printf -v escapedTitleMarker %q "$titleMarker"
+			while [ $# -gt 0 -a "$1" != "$COMMANDWITHHIDDENID_EXEC_END" ]
+			do
+			    printf -v quotedArg %q "$1"
+			    cmd+="${cmd:+ }${quotedArg//"$escapedTitleMarker"/$titleMarker}"	# %q escapes {}, we don't want that to have it interpolated later.
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --exec command must be concluded with '${COMMANDWITHHIDDENID_EXEC_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			targetCommands+="${targetCommands:+ $COMMANDWITHHIDDENID_COMMAND_JOINER }${cmd}"
+			;;
+	--)		shift; break;;
+	-*)		{ echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	*)		break;;
     esac
 done
 if [ -z "$targetCommands" ]; then
-    echo 'ERROR: No -c|--command passed.'
+    echo "ERROR: No COMMAND(s) specified; need to pass -c|--command \"COMMANDLINE\" or --exec SIMPLECOMMAND [...] $COMMANDWITHHIDDENID_EXEC_END."
     echo
     printUsage "$0"
     exit 2
