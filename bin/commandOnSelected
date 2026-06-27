@@ -337,7 +337,8 @@ else
 			    Enter each number (one after the other) to select the entry.
 			    You can also use ranges (2-5 or 3-); negative numbers select from the end.
 			    /N selects all but entry N, * selects all entries.
-			    Filter the list by entering "grep" arguments. (Double backslashes.)
+			    Filter the list by entering "grep" arguments. (Shell syntax, but backslashes
+			    need to be doubled.)
 EOF
 			if [ ${#filters[@]} -gt 1 ]; then
 			    cat >&2 <<-EOF
@@ -431,7 +432,7 @@ EOF
 			eval "selected=({${REPLY%-}..$#})"
 			selectByCounts "$@"
 			;;
-		    *)	typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | grep $REPLY)
+		    *)	typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "grep $REPLY")
 			if [ ${#filteredEntries[@]} -eq 0 ]; then
 			    echo >&2 "No results from filtering."
 			else
