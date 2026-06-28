@@ -2,6 +2,15 @@
 set -o noglob
 shopt -qs extglob
 
+: ${COMMANDONSELECTED_KEY_PREFIX='[35m'}
+: ${COMMANDONSELECTED_KEY_SUFFIX='[0m'}
+: ${COMMANDONSELECTED_SYNTAX_PREFIX='[1;35m'}
+: ${COMMANDONSELECTED_SYNTAX_SUFFIX='[0m'}
+: ${COMMANDONSELECTED_SYMBOLIC_PREFIX='[3;35m'}
+: ${COMMANDONSELECTED_SYMBOLIC_SUFFIX='[0m'}
+: ${COMMANDONSELECTED_FILTER_PREFIX='[36m'}
+: ${COMMANDONSELECTED_FILTER_SUFFIX='[0m'}
+
 : ${COMMANDONSELECTED_COMMAND_JOINER=;}
 : ${COMMANDONSELECTED_ENTRIES_MARKER='{}'}
 entriesMarker="$COMMANDONSELECTED_ENTRIES_MARKER"; unset COMMANDONSELECTED_ENTRIES_MARKER
@@ -47,8 +56,8 @@ been passed).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
+    echo
     cat <<HELPTEXT
-
 Passed ENTRIES are then passed to GENERATOR for further filtering unless FILTER
 is given, in which case it is passed to it, or taken as-is if FILTER is empty.
 ENTRIES are ${filterMarker:+either }appended${filterMarker:+ or replace any $filterMarker}; they should be returned as
@@ -62,9 +71,10 @@ entries.${fuzzyTrigger:+
 $fuzzyTrigger starts selection via fuzzy matching (using fzf).}
 
 Without SELECTIONs, show a (numbered) list of them to the user, and ask for
-selections (or allow further filtering of the list via grep, or invert the
-selection via //). The selected entries are then passed to the COMMANDLINE
-(${entriesMarker:+either }appended${entriesMarker:+ or replacing any $entriesMarker marker}) [or printed].
+selections (or allow further filtering of the list by in-/excluding ranges, via
+grep or any shell command, or invert the selection via //). The selected entries
+are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMarker:+ or replacing any $entriesMarker marker})
+[or printed].
 
     --format=single-column|-1
 		    List one entry per line instead of the default columnar
@@ -126,9 +136,12 @@ selection via //). The selected entries are then passed to the COMMANDLINE
     --stdin	    Read entries from standard input; each line is one entry;
 		    these are appended to any entries passed via
 		    --entries-separated-by.
-EXIT STATUS
-Exits with 2 if a bad selection was made, 124 if there are no entries available,
-125 if no entries were selected.
+EXIT STATUS:
+    0	Complete success.
+    2	Bad selection, invocation, wrong or missing command-line arguments.
+    3	Internal error or failed assertion.
+    124 There are no entries available.
+    125 No entries were selected.
 HELPTEXT
 }
 printIfDefined()
@@ -303,17 +316,35 @@ else
 	selectedEntries=("${invertedEntries[@]}")
     }
     typeset -a filters=()
+    applyFilter()
+    {
+	if [ $# -eq 0 ]; then
+	    echo >&2 'No results from filtering.'
+	else
+	    filters+=("$REPLY")
+		selectCandidates "$@"
+		[ ${#filters[@]} -gt 0 ] || return 1
+	    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
+	fi
+    }
     printCurrentFilter()
     {
 	local prefix="${1:?}"; shift
 	case $# in
 	    0)	;;
-	    1)	echo >&2 "$prefix at full list of entries; press Enter to show again.";;
-	    *)	printf >&2 '%s at filter %s;\n%spress Enter to show entries again, Ctrl-D or ".." to leave this filter,\n%s"." to finish selecting.\n' \
+	    1)	printf >&2 '%s at full list of entries; press %s%s%s to show again.\n' \
 		    "$prefix" \
-		    "$(joinBy ' > ' "${@:1:$(($#-1))}")" \
+		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX"
+		;;
+	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show entries again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
+		    "$prefix" \
+		    "$(printf '%s\n' "${@:1:$(($#-1))}" | surround -- "$COMMANDONSELECTED_FILTER_PREFIX" "$COMMANDONSELECTED_FILTER_SUFFIX" | joinBy - ' | ')" \
 		    "${prefix%%+([^	 ])}" \
-		    "${prefix%%+([^	 ])}"
+		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX" \
+		    "$COMMANDONSELECTED_KEY_PREFIX" Ctrl-D "$COMMANDONSELECTED_KEY_SUFFIX" \
+		    "$COMMANDONSELECTED_SYNTAX_PREFIX" .. "$COMMANDONSELECTED_SYNTAX_SUFFIX" \
+		    "${prefix%%+([^	 ])}" \
+		    "$COMMANDONSELECTED_SYNTAX_PREFIX" . "$COMMANDONSELECTED_SYNTAX_SUFFIX"
 		;;
 	esac
     }
@@ -332,27 +363,32 @@ else
 		    //) invertCandidates "$@"; isBreak=t;;
 		    ${fuzzyTrigger:-.})
 			selectFuzzy "$@"; isBreak=t;;
-		    \?) quote='"'
-			cat >&2 <<-EOF
+		    \?) cat >&2 <<-EOF
 			    Enter each number (one after the other) to select the entry.
-			    You can also use ranges (2-5 or 3-); negative numbers select from the end.
-			    /N selects all but entry N, * selects all entries.
-			    Filter the list by entering "grep" arguments. (Double backslashes.)
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}3-${COMMANDONSELECTED_SYNTAX_SUFFIX} are ranges
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-3${COMMANDONSELECTED_SYNTAX_SUFFIX} negative numbers select from the end
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}/N${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all but entry N
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}*${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all entries.
+			    Filtering:
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+-9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+3-${COMMANDONSELECTED_SYNTAX_SUFFIX} limits entries to that range
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}--9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}-3-${COMMANDONSELECTED_SYNTAX_SUFFIX} excludes entries in that range
+			    · ${COMMANDONSELECTED_SYMBOLIC_PREFIX}PATTERN|GREP-ARGUMENTS [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filter the list
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}\$${COMMANDONSELECTED_SYNTAX_SUFFIX}${COMMANDONSELECTED_SYMBOLIC_PREFIX}SHELL-COMMAND [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filters (or even modifies) the list
+			      (Use normal shell syntax, except backslashes need to be doubled.)
 EOF
 			if [ ${#filters[@]} -gt 1 ]; then
 			    cat >&2 <<-EOF
-			    Leave the current filter by appending or entering ".." to entered numbers or
-			    ranges, or by pressing Ctrl-D.
-			    Finish selecting altogether by appending or entering a single ".".
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}..${COMMANDONSELECTED_SYNTAX_SUFFIX} (standalone or appended to entries) or ${COMMANDONSELECTED_KEY_PREFIX}Ctrl-D${COMMANDONSELECTED_KEY_SUFFIX} leave the current filter
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}.${COMMANDONSELECTED_SYNTAX_SUFFIX} (standalone or appended to entries) finish selecting altogether
 EOF
 			else
 			    cat >&2 <<-EOF
-			    Finish selecting by appending or entering a single ".", or pressing Ctrl-D.
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}.${COMMANDONSELECTED_SYNTAX_SUFFIX} (standalone or appended to entries) or ${COMMANDONSELECTED_KEY_PREFIX}Ctrl-D${COMMANDONSELECTED_KEY_SUFFIX} finish selecting
 EOF
 			fi
 			cat >&2 <<-EOF
-			    Take the inversion (i.e. all not selected entries) by entering "//"${fuzzyTrigger:+
-    Switch to fuzzy matching (using fzf) by entering ${quote}${fuzzyTrigger}${quote}}
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}//${COMMANDONSELECTED_SYNTAX_SUFFIX} takes the inversion (i.e. all not selected entries)${fuzzyTrigger:+
+    · ${COMMANDONSELECTED_SYNTAX_PREFIX}${fuzzyTrigger}${COMMANDONSELECTED_SYNTAX_SUFFIX} switches to fuzzy matching (using fzf)}
 EOF
 			printCurrentFilter '    Currently' "${filters[@]}" ''
 			if [ ${#selectedEntries[@]} -eq 0 ]; then
@@ -431,15 +467,24 @@ EOF
 			eval "selected=({${REPLY%-}..$#})"
 			selectByCounts "$@"
 			;;
-		    *)	typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | grep $REPLY)
-			if [ ${#filteredEntries[@]} -eq 0 ]; then
-			    echo >&2 "No results from filtering."
-			else
-			    filters+=("$REPLY")
-				selectCandidates "${filteredEntries[@]}"
-				[ ${#filters[@]} -eq 0 ] && break
-			    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
-			fi
+
+		    [+-]+([0-9])-*([0-9]))
+			;&
+		    [+-]*([0-9])-+([0-9]))
+			local filterAction="${REPLY:0:1}"; filterRange="${REPLY:1}"
+			local startCnt=${filterRange%%-*} endCnt=${filterRange#*-}
+			startCnt=${startCnt:-1} endCnt=${endCnt:-$#}
+			case "$filterAction" in
+			    +)	applyFilter "${@:startCnt:endCnt - startCnt + 1}" || break;;
+			    -)	applyFilter "${@:1:startCnt - 1}" "${@:endCnt + 1}" || break;;
+			    *)	printf >&2 'ASSERT: Invalid filterAction: %s\n' "$filterAction"; exit 3;;
+			esac
+			;;
+		    *)	[[ "$REPLY" = \$* ]] \
+			    && local filterCommand="${REPLY#\$}" \
+			    || local filterCommand="grep $REPLY"
+			typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "$filterCommand")
+			applyFilter "${filteredEntries[@]}" || break
 			;;
 		esac
 		if [ "$isBreak" ]; then
