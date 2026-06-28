@@ -304,6 +304,17 @@ else
 	selectedEntries=("${invertedEntries[@]}")
     }
     typeset -a filters=()
+    applyFilter()
+    {
+	if [ $# -eq 0 ]; then
+	    echo >&2 'No results from filtering.'
+	else
+	    filters+=("$REPLY")
+		selectCandidates "$@"
+		[ ${#filters[@]} -gt 0 ] || return 1
+	    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
+	fi
+    }
     printCurrentFilter()
     {
 	local prefix="${1:?}"; shift
@@ -444,33 +455,17 @@ EOF
 			local filterAction="${REPLY:0:1}"; filterRange="${REPLY:1}"
 			local startCnt=${filterRange%%-*} endCnt=${filterRange#*-}
 			startCnt=${startCnt:-1} endCnt=${endCnt:-$#}
-			typeset -a filteredEntries=()
 			case "$filterAction" in
-			    +)	filteredEntries=("${@:startCnt:endCnt - startCnt + 1}");;
-			    -)	filteredEntries=("${@:1:startCnt - 1}" "${@:endCnt + 1}");;
+			    +)	applyFilter "${@:startCnt:endCnt - startCnt + 1}" || break;;
+			    -)	applyFilter "${@:1:startCnt - 1}" "${@:endCnt + 1}" || break;;
 			    *)	printf >&2 'ASSERT: Invalid filterAction: %s\n' "$filterAction"; exit 3;;
 			esac
-			if [ ${#filteredEntries[@]} -eq 0 ]; then
-			    echo >&2 'No results from filtering.'
-			else
-			    filters+=("$REPLY")
-				selectCandidates "${filteredEntries[@]}"
-				[ ${#filters[@]} -eq 0 ] && break
-			    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
-			fi
 			;;
 		    *)	[[ "$REPLY" = \$* ]] \
 			    && local filterCommand="${REPLY#\$}" \
 			    || local filterCommand="grep $REPLY"
 			typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "$filterCommand")
-			if [ ${#filteredEntries[@]} -eq 0 ]; then
-			    echo >&2 'No results from filtering.'
-			else
-			    filters+=("$REPLY")
-				selectCandidates "${filteredEntries[@]}"
-				[ ${#filters[@]} -eq 0 ] && break
-			    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
-			fi
+			applyFilter "${filteredEntries[@]}" || break
 			;;
 		esac
 		if [ "$isBreak" ]; then
