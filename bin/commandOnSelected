@@ -62,7 +62,7 @@ entries.${fuzzyTrigger:+
 $fuzzyTrigger starts selection via fuzzy matching (using fzf).}
 
 Without SELECTIONs, show a (numbered) list of them to the user, and ask for
-selections (or allow further filtering of the list via
+selections (or allow further filtering of the list by in-/excluding ranges, via
 grep or any shell command, or invert the selection via //). The selected entries
 are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMarker:+ or replacing any $entriesMarker marker})
 [or printed].
@@ -339,6 +339,9 @@ else
 			    · -3 negative numbers select from the end
 			    · /N selects all but entry N
 			    · * selects all entries.
+			    Filtering:
+			    · +2-5 or +-9 or +3- limits entries to that range
+			    · -2-5 or --9 or -3- excludes entries in that range
 			    · PATTERN|GREP-ARGUMENTS [...] filter the list
 			    · \$SHELL-COMMAND [...] filters (or even modifies) the list
 			      (Use normal shell syntax, except backslashes need to be doubled.)
@@ -434,12 +437,34 @@ EOF
 			eval "selected=({${REPLY%-}..$#})"
 			selectByCounts "$@"
 			;;
+
+		    [+-]+([0-9])-*([0-9]))
+			;&
+		    [+-]*([0-9])-+([0-9]))
+			local filterAction="${REPLY:0:1}"; filterRange="${REPLY:1}"
+			local startCnt=${filterRange%%-*} endCnt=${filterRange#*-}
+			startCnt=${startCnt:-1} endCnt=${endCnt:-$#}
+			typeset -a filteredEntries=()
+			case "$filterAction" in
+			    +)	filteredEntries=("${@:startCnt:endCnt - startCnt + 1}");;
+			    -)	filteredEntries=("${@:1:startCnt - 1}" "${@:endCnt + 1}");;
+			    *)	printf >&2 'ASSERT: Invalid filterAction: %s\n' "$filterAction"; exit 3;;
+			esac
+			if [ ${#filteredEntries[@]} -eq 0 ]; then
+			    echo >&2 'No results from filtering.'
+			else
+			    filters+=("$REPLY")
+				selectCandidates "${filteredEntries[@]}"
+				[ ${#filters[@]} -eq 0 ] && break
+			    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
+			fi
+			;;
 		    *)	[[ "$REPLY" = \$* ]] \
 			    && local filterCommand="${REPLY#\$}" \
 			    || local filterCommand="grep $REPLY"
 			typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "$filterCommand")
 			if [ ${#filteredEntries[@]} -eq 0 ]; then
-			    echo >&2 "No results from filtering."
+			    echo >&2 'No results from filtering.'
 			else
 			    filters+=("$REPLY")
 				selectCandidates "${filteredEntries[@]}"
