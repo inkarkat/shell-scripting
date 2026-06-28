@@ -136,9 +136,12 @@ are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMa
     --stdin	    Read entries from standard input; each line is one entry;
 		    these are appended to any entries passed via
 		    --entries-separated-by.
-EXIT STATUS
-Exits with 2 if a bad selection was made, 124 if there are no entries available,
-125 if no entries were selected.
+EXIT STATUS:
+    0	Complete success.
+    2	Bad selection, invocation, wrong or missing command-line arguments.
+    3	Internal error or failed assertion.
+    124 There are no entries available.
+    125 No entries were selected.
 HELPTEXT
 }
 printIfDefined()
