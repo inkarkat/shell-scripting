@@ -2,6 +2,15 @@
 set -o noglob
 shopt -qs extglob
 
+: ${COMMANDONSELECTED_KEY_PREFIX='[35m'}
+: ${COMMANDONSELECTED_KEY_SUFFIX='[0m'}
+: ${COMMANDONSELECTED_SYNTAX_PREFIX='[1;35m'}
+: ${COMMANDONSELECTED_SYNTAX_SUFFIX='[0m'}
+: ${COMMANDONSELECTED_SYMBOLIC_PREFIX='[3;35m'}
+: ${COMMANDONSELECTED_SYMBOLIC_SUFFIX='[0m'}
+: ${COMMANDONSELECTED_FILTER_PREFIX='[36m'}
+: ${COMMANDONSELECTED_FILTER_SUFFIX='[0m'}
+
 : ${COMMANDONSELECTED_COMMAND_JOINER=;}
 : ${COMMANDONSELECTED_ENTRIES_MARKER='{}'}
 entriesMarker="$COMMANDONSELECTED_ENTRIES_MARKER"; unset COMMANDONSELECTED_ENTRIES_MARKER
@@ -320,12 +329,19 @@ else
 	local prefix="${1:?}"; shift
 	case $# in
 	    0)	;;
-	    1)	echo >&2 "$prefix at full list of entries; press Enter to show again.";;
-	    *)	printf >&2 '%s at filter %s;\n%spress Enter to show entries again, Ctrl-D or ".." to leave this filter,\n%s"." to finish selecting.\n' \
+	    1)	printf >&2 '%s at full list of entries; press %s%s%s to show again.\n' \
 		    "$prefix" \
-		    "$(joinBy ' > ' "${@:1:$(($#-1))}")" \
+		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX"
+		;;
+	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show entries again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
+		    "$prefix" \
+		    "$(printf '%s\n' "${@:1:$(($#-1))}" | surround -- "$COMMANDONSELECTED_FILTER_PREFIX" "$COMMANDONSELECTED_FILTER_SUFFIX" | joinBy - ' | ')" \
 		    "${prefix%%+([^	 ])}" \
-		    "${prefix%%+([^	 ])}"
+		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX" \
+		    "$COMMANDONSELECTED_KEY_PREFIX" Ctrl-D "$COMMANDONSELECTED_KEY_SUFFIX" \
+		    "$COMMANDONSELECTED_SYNTAX_PREFIX" .. "$COMMANDONSELECTED_SYNTAX_SUFFIX" \
+		    "${prefix%%+([^	 ])}" \
+		    "$COMMANDONSELECTED_SYNTAX_PREFIX" . "$COMMANDONSELECTED_SYNTAX_SUFFIX"
 		;;
 	esac
     }
@@ -346,30 +362,30 @@ else
 			selectFuzzy "$@"; isBreak=t;;
 		    \?) cat >&2 <<-EOF
 			    Enter each number (one after the other) to select the entry.
-			    · 2-5 or 3- are ranges
-			    · -3 negative numbers select from the end
-			    · /N selects all but entry N
-			    · * selects all entries.
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}3-${COMMANDONSELECTED_SYNTAX_SUFFIX} are ranges
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-3${COMMANDONSELECTED_SYNTAX_SUFFIX} negative numbers select from the end
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}/N${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all but entry N
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}*${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all entries.
 			    Filtering:
-			    · +2-5 or +-9 or +3- limits entries to that range
-			    · -2-5 or --9 or -3- excludes entries in that range
-			    · PATTERN|GREP-ARGUMENTS [...] filter the list
-			    · \$SHELL-COMMAND [...] filters (or even modifies) the list
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+-9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+3-${COMMANDONSELECTED_SYNTAX_SUFFIX} limits entries to that range
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}--9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}-3-${COMMANDONSELECTED_SYNTAX_SUFFIX} excludes entries in that range
+			    · ${COMMANDONSELECTED_SYMBOLIC_PREFIX}PATTERN|GREP-ARGUMENTS [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filter the list
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}\$${COMMANDONSELECTED_SYNTAX_SUFFIX}${COMMANDONSELECTED_SYMBOLIC_PREFIX}SHELL-COMMAND [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filters (or even modifies) the list
 			      (Use normal shell syntax, except backslashes need to be doubled.)
 EOF
 			if [ ${#filters[@]} -gt 1 ]; then
 			    cat >&2 <<-EOF
-			    · .. (standalone or appended to entries) or Ctrl-D leave the current filter
-			    · . (standalone or appended to entries) finish selecting altogether
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}..${COMMANDONSELECTED_SYNTAX_SUFFIX} (standalone or appended to entries) or ${COMMANDONSELECTED_KEY_PREFIX}Ctrl-D${COMMANDONSELECTED_KEY_SUFFIX} leave the current filter
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}.${COMMANDONSELECTED_SYNTAX_SUFFIX} (standalone or appended to entries) finish selecting altogether
 EOF
 			else
 			    cat >&2 <<-EOF
-			    · . (standalone or appended to entries) or Ctrl-D finish selecting
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}.${COMMANDONSELECTED_SYNTAX_SUFFIX} (standalone or appended to entries) or ${COMMANDONSELECTED_KEY_PREFIX}Ctrl-D${COMMANDONSELECTED_KEY_SUFFIX} finish selecting
 EOF
 			fi
 			cat >&2 <<-EOF
-			    · // takes the inversion (i.e. all not selected entries)${fuzzyTrigger:+
-    · ${fuzzyTrigger} switches to fuzzy matching (using fzf)}
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}//${COMMANDONSELECTED_SYNTAX_SUFFIX} takes the inversion (i.e. all not selected entries)${fuzzyTrigger:+
+    · ${COMMANDONSELECTED_SYNTAX_PREFIX}${fuzzyTrigger}${COMMANDONSELECTED_SYNTAX_SUFFIX} switches to fuzzy matching (using fzf)}
 EOF
 			printCurrentFilter '    Currently' "${filters[@]}" ''
 			if [ ${#selectedEntries[@]} -eq 0 ]; then
