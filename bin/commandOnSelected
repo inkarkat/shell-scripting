@@ -47,8 +47,8 @@ been passed).
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
+    echo
     cat <<HELPTEXT
-
 Passed ENTRIES are then passed to GENERATOR for further filtering unless FILTER
 is given, in which case it is passed to it, or taken as-is if FILTER is empty.
 ENTRIES are ${filterMarker:+either }appended${filterMarker:+ or replace any $filterMarker}; they should be returned as
@@ -62,9 +62,10 @@ entries.${fuzzyTrigger:+
 $fuzzyTrigger starts selection via fuzzy matching (using fzf).}
 
 Without SELECTIONs, show a (numbered) list of them to the user, and ask for
-selections (or allow further filtering of the list via grep, or invert the
-selection via //). The selected entries are then passed to the COMMANDLINE
-(${entriesMarker:+either }appended${entriesMarker:+ or replacing any $entriesMarker marker}) [or printed].
+selections (or allow further filtering of the list via
+grep or any shell command, or invert the selection via //). The selected entries
+are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMarker:+ or replacing any $entriesMarker marker})
+[or printed].
 
     --format=single-column|-1
 		    List one entry per line instead of the default columnar
@@ -337,8 +338,9 @@ else
 			    Enter each number (one after the other) to select the entry.
 			    You can also use ranges (2-5 or 3-); negative numbers select from the end.
 			    /N selects all but entry N, * selects all entries.
-			    Filter the list by entering "grep" arguments. (Shell syntax, but backslashes
-			    need to be doubled.)
+			    Filter the list by entering "grep" arguments, or any "\$SHELL-COMMAND ..."
+			    to filter (or even modify) the list.
+			    (Shell syntax, but backslashes need to be doubled.)
 EOF
 			if [ ${#filters[@]} -gt 1 ]; then
 			    cat >&2 <<-EOF
@@ -432,7 +434,10 @@ EOF
 			eval "selected=({${REPLY%-}..$#})"
 			selectByCounts "$@"
 			;;
-		    *)	typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "grep $REPLY")
+		    *)	[[ "$REPLY" = \$* ]] \
+			    && local filterCommand="${REPLY#\$}" \
+			    || local filterCommand="grep $REPLY"
+			typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "$filterCommand")
 			if [ ${#filteredEntries[@]} -eq 0 ]; then
 			    echo >&2 "No results from filtering."
 			else
