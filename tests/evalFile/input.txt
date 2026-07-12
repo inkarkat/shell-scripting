@@ -1,4 +1,4 @@
-This is a ${WHAT:+"}${WHAT}${WHAT:+" }file on $HOST_VAR with ${PASSWORD:-undefined}.
+This is a ${WHAT:+$SQ}${WHAT}${WHAT:+" }file on $HOST_VAR with ${PASSWORD:-undefined}.
 This escaping of \$\$\$s for 'here' and "there".
 //mymy\\\\ /single\\ things
 Just a * for /home/*

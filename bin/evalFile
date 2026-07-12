@@ -28,9 +28,11 @@ HELPDESCRIPTION
     printShortUsage "$1"
     echo
     cat <<HELPTEXT
-Backslashes must be doubled; all other characters can remain as-is, like in a
-double-quoted string in the shell. This can be used as a simple template
-expander.
+- Backslashes must be doubled.
+- Use \$SQ instead of a single quote (') inside environment variable defaulting;
+  e.g. \${VARIABLE:+\$SQ}\${VARIABLE}\${VARIABLE:+\$SQ}
+All other characters can remain as-is, like in a double-quoted string in the
+shell. This can be used as a simple template expander.
 
 EXIT STATUS:
     0	Complete success.
@@ -42,5 +44,6 @@ case "$1" in
     --)			shift;;
 esac
 
+SQ="'"
 contents="$(cat -- "$@")" || exit $?
 eval "printf %s\\\\n \"${contents//\"/\\\"}\""

@@ -11,6 +11,11 @@ export HOST_VAR=testhost
     assert_output 'test input file on testhost with undefined'
 }
 
+@test "environment variable expansion with quotes" {
+    run -0 evalFile <<<"\${WHAT:+\$SQ}\${WHAT}\${WHAT:+\" }file on \$HOST_VAR with \${PASSWORD:-undefined}"
+    assert_output "'test input\" file on testhost with undefined"
+}
+
 @test "undoubling of backslashes" {
     run -0 evalFile <<<'//mymy\\\\ /single\\ things'
     assert_output '//mymy\\ /single\ things'
