@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 shopt -qs extglob
 
 printShortUsage()
@@ -29,6 +30,8 @@ HELPDESCRIPTION
     echo
     cat <<HELPTEXT
 - Backslashes must be doubled.
+- Only simple unnested shell command substitutions (\$(COMMAND) / \`COMMAND\`)
+  without contained ) and \` characters are supported.
 - Use \$SQ instead of a single quote (') inside environment variable defaulting;
   e.g. \${VARIABLE:+\$SQ}\${VARIABLE}\${VARIABLE:+\$SQ}
 All other characters can remain as-is, like in a double-quoted string in the
@@ -44,6 +47,20 @@ case "$1" in
     --)			shift;;
 esac
 
+escapeToplevelDoubleQuotes()
+{
+    # Extract $(cmd) and `cmd` (unnested only), but on separate null-terminated
+    # lines, then escape all text (i.e. uneven line numbers) around those.
+    # sed's regular expression engine unfortunately isn't powerful enough to do this
+    # in one pass.
+    sed -e :loop -e '$!{ N; b loop; }' \
+	    -e 's/\(\$([^)]\+)\)/\d000\1\d000/g' \
+	    -e 's/\(`[^`]\+`\)/\d000\1\d000/g' \
+	    -- "$@" \
+	| sed --null-data -e 's/"/\\"/g; $!N' \
+	| tr -d '\000'
+}
+
 SQ="'"
-contents="$(cat -- "$@")" || exit $?
-eval "printf %s\\\\n \"${contents//\"/\\\"}\""
+contents="$(escapeToplevelDoubleQuotes "$@")" || exit $?
+eval "printf %s\\\\n \"${contents}\""

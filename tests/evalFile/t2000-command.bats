@@ -42,6 +42,50 @@ export HOST_VAR=testhost
 I know?.'
 }
 
+@test "command substitution with quotes" {
+    typeset -A data=(
+	["\`printf '%s\\n' 'foo bar' 'and more'\`"]=$'foo bar\nand more'
+	["\$(printf '%s\\n' 'foo bar' 'and more')"]=$'foo bar\nand more'
+	['`printf "%s\\n" "foo bar" "and more"`']=$'foo bar\nand more'
+	['$(printf "%s\\n" "foo bar" "and more")']=$'foo bar\nand more'
+	["\`printf \"%s\\\\n\" 'foo bar' \"and more\"\`"]=$'foo bar\nand more'
+	["\$(printf \"%s\\\\n\" 'foo bar' \"and more\")"]=$'foo bar\nand more'
+	["This \"result\" is '\`printf '%s\\n' 'foo bar' 'and more'\`' and \"results\" are \`echo \"many\"\` here."]=$'This "result" is \'foo bar\nand more\' and "results" are many here.'
+	["This \"result\" is '\$(printf '%s\\n' 'foo bar' 'and more')' and \"results\" are \`echo \"many\"\` here."]=$'This "result" is \'foo bar\nand more\' and "results" are many here.'
+	["\`printf '%s\\n' 'foo bar' 'and more'\`\`echo \" and many \"\`\`echo more\`"]=$'foo bar\nand more and many more'
+	["\$(printf '%s\\n' 'foo bar' 'and more')\$(echo \" and many \")\$(echo more)"]=$'foo bar\nand more and many more'
+	["\$(printf '%s\\n' 'foo bar' 'and more')\`echo \" and many \"\`\$(echo more)"]=$'foo bar\nand more and many more'
+    )
+    for value in "${!data[@]}"
+    do
+	run -0 evalFile <<<"$value" \
+	    && assert_output "${data["$value"]}" \
+	    || fail "$value should yield ${data["$value"]}"
+    done
+}
+
+@test "command substitution returning a single quote" {
+    for input in \
+	"\$(echo -e 'A single quote: \x27')." \
+	'$(echo -e "A single quote: \\x27").'
+    do
+	run -0 evalFile <<<"$input" \
+	    && assert_output "A single quote: '." \
+	    || fail "$input"
+    done
+}
+
+@test "command substitution returning a double quote" {
+    for input in \
+	"\$(echo -e 'A double quote: \x22')." \
+	'$(echo -e "A double quote: \\x22").'
+    do
+	run -0 evalFile <<<"$input" \
+	    && assert_output 'A double quote: ".' \
+	    || fail "$input"
+    done
+}
+
 @test "processing of a single input file" {
     run -0 evalFile "${BATS_TEST_DIRNAME}/input.txt"
     assert_output - < "${BATS_TEST_DIRNAME}/expected.txt"
