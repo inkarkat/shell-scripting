@@ -18,19 +18,16 @@ EOF
 @test "processing of a single input file" {
     run -0 evalFile "${BATS_TEST_DIRNAME}/input.txt"
     assert_output "$expected"
-
 }
 
 @test "processing of a standard input specified as - FILE" {
     run -0 evalFile - < "${BATS_TEST_DIRNAME}/input.txt"
     assert_output "$expected"
-
 }
 
 @test "processing of a standard input when no arguments are given" {
     run -0 evalFile < "${BATS_TEST_DIRNAME}/input.txt"
     assert_output "$expected"
-
 }
 
 @test "processing of a multiple input files" {
