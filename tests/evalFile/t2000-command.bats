@@ -6,6 +6,37 @@ unset PASSWORD
 export WHAT='test input'
 export HOST_VAR=testhost
 
+@test "environment variable expansion" {
+    run -0 evalFile <<<'${WHAT}${WHAT:+ }file on $HOST_VAR with ${PASSWORD:-undefined}'
+    assert_output 'test input file on testhost with undefined'
+}
+
+@test "undoubling of backslashes" {
+    run -0 evalFile <<<'//mymy\\\\ /single\\ things'
+    assert_output '//mymy\\ /single\ things'
+}
+
+@test "escaping of dollar sign" {
+    run -0 evalFile <<<"This escaping of \\\$\\\$\\\$s for 'here' and \"there\"."
+    assert_output "This escaping of \$\$\$s for 'here' and \"there\"."
+}
+
+@test "no globbing" {
+    run -0 evalFile <<<'Just a * for /home/*'
+    assert_output 'Just a * for /home/*'
+}
+
+@test "no dollar-single quote string expansion" {
+    run -0 evalFile <<<"A literal $'\n' or $'nono'"
+    assert_output "A literal $'\n' or $'nono'"
+}
+
+@test "command substitution" {
+    run -0 evalFile <<<"All on `uname`, to be exact \$(echo -e 'What do\\nI know?')."
+    assert_output 'All on Linux, to be exact What do
+I know?.'
+}
+
 @test "processing of a single input file" {
     run -0 evalFile "${BATS_TEST_DIRNAME}/input.txt"
     assert_output - < "${BATS_TEST_DIRNAME}/expected.txt"
