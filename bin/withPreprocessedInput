@@ -179,7 +179,7 @@ fi >&2
 
 tempFilespec="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
 typeset -a tempFiles=("$tempFilespec")
-[ "${DEBUG:-}" ] || trap 'rm -f -- "${tempFiles[@]}" 2>/dev/null' EXIT
+! ${DEBUG:+debugenabled --invert-match --} ${DEBUG:-:} || trap 'rm -f -- "${tempFiles[@]}" 2>/dev/null' EXIT
 
 
 captureThenPreprocess()

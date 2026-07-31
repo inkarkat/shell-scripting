@@ -126,7 +126,7 @@ parallelTeePipeline()
 case "$buffering" in
     input)
 	TMPFILE="$(mktemp --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || echo "${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM")"
-	[ "${DEBUG:-}" ] || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
+	! ${DEBUG:+debugenabled --invert-match --} ${DEBUG:-:} || trap 'rm -f -- "$TMPFILE" 2>/dev/null' EXIT
 	cat > "$TMPFILE" || exit $?
 
 	if [ "$isParallel" ]; then
@@ -145,7 +145,7 @@ case "$buffering" in
 	fi
 
 	tempDirspec="$(mktemp --directory --tmpdir "$(basename -- "$0")-XXXXXX" 2>/dev/null || { dirspec="${TMPDIR:-/tmp}/$(basename -- "$0").$$$RANDOM"; mkdir -p -- "$dirspec" && printf %s "$dirspec"; })" || exit 3
-	[ "${DEBUG:-}" ] || trap 'rm -rf -- "$tempDirspec" 2>/dev/null' EXIT
+	! ${DEBUG:+debugenabled --invert-match --} ${DEBUG:-:} || trap 'rm -rf -- "$tempDirspec" 2>/dev/null' EXIT
 
 	typeset -a capturingCommandLines=()
 	typeset -a captureFilespecs=()
