@@ -122,10 +122,8 @@ do
 			runWithPromptArgs+=("$1"); shift; additionalSuccessStatus=99;;
 	--)		shift; break;;
 	-*)		if argCount=$(runWithPrompt --understands "$@"); then
-			    while ((argCount-- > 0))
-			    do
-				runWithPromptArgs+=("$1"); shift
-			    done
+			    runWithPromptArgs+=("${@:1:argCount}")
+			    shift $argCount
 			    : ${with:=runWith}
 			elif [ $? -eq 2 ]; then
 			    exit 2
