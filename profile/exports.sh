@@ -1,1 +1,1 @@
-IFS='|' optionmunge export COMMANDNAME_WRAPPERS inputToArg linesToArg linesToArgs pipelineBuilder
+optionmunge -s '|' export COMMANDNAME_WRAPPERS inputToArg linesToArg linesToArgs pipelineBuilder
