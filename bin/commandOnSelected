@@ -327,11 +327,13 @@ else
 		isOfferingsLimited="$save_isOfferingsLimited"
 		[ ${#filters[@]} -gt 0 ] || return 1
 	    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
+	    setPrompt
 	fi
     }
     clearFilters()
     {
 	filters=()
+	setPrompt
     }
     printCurrentFilter()
     {
@@ -356,11 +358,19 @@ else
 		;;
 	esac
     }
+    setPrompt()
+    {
+	PS3='#'
+	[ ${#filters[@]} -gt 0 ] && PS3="(${PS3})"
+	[ "$isOfferingsLimited" ] && PS3="[${PS3}]"
+	PS3+='? '
+
+    }
+    isShowAll=
     selectCandidates()
     {
 	[ "$isOneEntryPerLine" ] && COLUMNS=1
 
-	PS3='#? '; [ ${#filters[@]} -gt 0 ] && PS3='(#)? '
 	if [ -n "$LINES" ] && [ $# -ge $LINES ]; then
 	    # Not enough space to show all available entries; only show as many as fit the
 	    # screen.
@@ -371,6 +381,7 @@ else
 	    typeset -a offerings=("$@")
 	fi
 
+	setPrompt
 	local entry; select entry in "${offerings[@]}"
 	do
 	    if [ "$entry" ]; then
