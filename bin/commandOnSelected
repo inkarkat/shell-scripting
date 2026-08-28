@@ -351,6 +351,8 @@ else
     selectCandidates()
     {
 	[ "$isOneEntryPerLine" ] && COLUMNS=1
+
+	PS3='#? '; [ ${#filters[@]} -gt 0 ] && PS3='(#)? '
 	local entry; select entry
 	do
 	    if [ "$entry" ]; then
