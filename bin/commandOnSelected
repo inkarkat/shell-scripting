@@ -318,12 +318,16 @@ else
     typeset -a filters=()
     applyFilter()
     {
+	local isFilterShowsAll="${1?}"; shift
 	if [ $# -eq 0 ]; then
 	    echo >&2 'No results from filtering.'
 	else
 	    filters+=("$REPLY")
 		save_isOfferingsLimited="$isOfferingsLimited"
+		save_isShowAll="$isShowAll"
+		[ "$isFilterShowsAll" ] && isShowAll=t
 		    selectCandidates "$@"
+		isShowAll="$save_isShowAll"
 		isOfferingsLimited="$save_isOfferingsLimited"
 		[ ${#filters[@]} -gt 0 ] || return 1
 	    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
@@ -371,7 +375,7 @@ else
     {
 	[ "$isOneEntryPerLine" ] && COLUMNS=1
 
-	if [ -n "$LINES" ] && [ $# -ge $LINES ]; then
+	if [ -n "$LINES" ] && [ $# -ge $LINES ] && [ ! "$isShowAll" ]; then
 	    # Not enough space to show all available entries; only show as many as fit the
 	    # screen.
 	    isOfferingsLimited=t
@@ -401,8 +405,12 @@ else
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}/N${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all but entry N
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}*${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all entries.
 			    Filtering:
-			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+-9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+3-${COMMANDONSELECTED_SYNTAX_SUFFIX} limits entries to that range
-			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}--9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}-3-${COMMANDONSELECTED_SYNTAX_SUFFIX} excludes entries in that range
+EOF
+			    [ "$isOfferingsLimited" ] && [ ! "$isShowAll" ] \
+				&& echo >&2 "    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+${COMMANDONSELECTED_SYNTAX_SUFFIX} shows all entries (with scrolling)"
+			    cat >&2 <<-EOF
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+-9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+3-${COMMANDONSELECTED_SYNTAX_SUFFIX} limits shown entries to that range
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}--9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}-3-${COMMANDONSELECTED_SYNTAX_SUFFIX} excludes entries in that range from being shown
 			    · ${COMMANDONSELECTED_SYMBOLIC_PREFIX}PATTERN|GREP-ARGUMENTS [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filter the list
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}\$${COMMANDONSELECTED_SYNTAX_SUFFIX}${COMMANDONSELECTED_SYMBOLIC_PREFIX}SHELL-COMMAND [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filters (or even modifies) the list
 			      (Use normal shell syntax, except backslashes need to be doubled.)
@@ -500,6 +508,14 @@ EOF
 			selectByCounts "$@"
 			;;
 
+		    +)	if [ "$isShowAll" ]; then
+			    echo >&2 'Already showing all entries.'
+			else
+			    isShowAll=t
+			    selectCandidates "$@"
+			    isBreak=t
+			fi
+			;;
 		    [+-]+([0-9])-*([0-9]))
 			;&
 		    [+-]*([0-9])-+([0-9]))
@@ -507,8 +523,8 @@ EOF
 			local startCnt=${filterRange%%-*} endCnt=${filterRange#*-}
 			startCnt=${startCnt:-1} endCnt=${endCnt:-${#offerings[@]}}
 			case "$filterAction" in
-			    +)	applyFilter "${@:startCnt:endCnt - startCnt + 1}" || break;;
-			    -)	applyFilter "${@:1:startCnt - 1}" "${@:endCnt + 1}" || break;;
+			    +)	applyFilter t "${@:startCnt:endCnt - startCnt + 1}" || break;;
+			    -)	applyFilter t "${@:1:startCnt - 1}" "${@:endCnt + 1}" || break;;
 			    *)	printf >&2 'ASSERT: Invalid filterAction: %s\n' "$filterAction"; exit 3;;
 			esac
 			;;
@@ -516,7 +532,7 @@ EOF
 			    && local filterCommand="${REPLY#\$}" \
 			    || local filterCommand="grep $REPLY"
 			typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "$filterCommand")
-			applyFilter "${filteredEntries[@]}" || break
+			applyFilter '' "${filteredEntries[@]}" || break
 			;;
 		esac
 		if [ "$isBreak" ]; then
