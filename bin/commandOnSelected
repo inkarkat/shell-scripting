@@ -322,7 +322,9 @@ else
 	    echo >&2 'No results from filtering.'
 	else
 	    filters+=("$REPLY")
-		selectCandidates "$@"
+		save_isOfferingsLimited="$isOfferingsLimited"
+		    selectCandidates "$@"
+		isOfferingsLimited="$save_isOfferingsLimited"
 		[ ${#filters[@]} -gt 0 ] || return 1
 	    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
 	fi
@@ -333,15 +335,17 @@ else
     }
     printCurrentFilter()
     {
+	local entryNum=${1:?}; shift
 	local prefix="${1:?}"; shift
+	local offeringsLimitation; [ "$isOfferingsLimited" ] && offeringsLimitation=" showing ${#offerings[@]} of $entryNum entries"
 	case $# in
 	    0)	;;
 	    1)	printf >&2 '%s at full list of entries; press %s%s%s to show again.\n' \
-		    "$prefix" \
+		    "${prefix}${offeringsLimitation}" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX"
 		;;
 	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show entries again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
-		    "$prefix" \
+		    "${prefix}${offeringsLimitation}" \
 		    "$(printf '%s\n' "${@:1:$(($#-1))}" | surround -- "$COMMANDONSELECTED_FILTER_PREFIX" "$COMMANDONSELECTED_FILTER_SUFFIX" | joinBy - ' | ')" \
 		    "${prefix%%+([^	 ])}" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX" \
@@ -357,7 +361,17 @@ else
 	[ "$isOneEntryPerLine" ] && COLUMNS=1
 
 	PS3='#? '; [ ${#filters[@]} -gt 0 ] && PS3='(#)? '
-	local entry; select entry
+	if [ -n "$LINES" ] && [ $# -ge $LINES ]; then
+	    # Not enough space to show all available entries; only show as many as fit the
+	    # screen.
+	    isOfferingsLimited=t
+	    typeset -a offerings=("${@:1:$((LINES - 1))}")
+	else
+	    isOfferingsLimited=
+	    typeset -a offerings=("$@")
+	fi
+
+	local entry; select entry in "${offerings[@]}"
 	do
 	    if [ "$entry" ]; then
 		selectedEntries+=("$entry")
@@ -396,7 +410,7 @@ EOF
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}//${COMMANDONSELECTED_SYNTAX_SUFFIX} takes the inversion (i.e. all not selected entries)${fuzzyTrigger:+
     · ${COMMANDONSELECTED_SYNTAX_PREFIX}${fuzzyTrigger}${COMMANDONSELECTED_SYNTAX_SUFFIX} switches to fuzzy matching (using fzf)}
 EOF
-			printCurrentFilter '    Currently' "${filters[@]}" ''
+			printCurrentFilter $# '    Currently' "${filters[@]}" ''
 			if [ ${#selectedEntries[@]} -eq 0 ]; then
 			    echo >&2 'Nothing selected yet.'
 			else
@@ -420,9 +434,9 @@ EOF
 			isBreak=t
 			;;
 		    +([0-9]))
-			entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
-			filterNote=; [ $# -lt ${#entries[@]} ] && filterNote=' filtered'
-			printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
+			entryPlural=ies; [ ${#offerings[@]} -eq 1 ] && entryPlural=y
+			filterNote=; [ ${#filters[@]} -eq 0 ] || filterNote='filtered'
+			printf >&2 'Only %d%s entr%s%s.\n' ${#offerings[@]} "${filterNote:+ }${filterNote}" "$entryPlural" "${isOfferingsLimited:+ shown}"
 			;;
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( ).)
 			clearFilters;&
@@ -471,7 +485,7 @@ EOF
 			isBreak=t
 			;&
 		    +([0-9])-)
-			eval "selected=({${REPLY%-}..$#})"
+			eval "selected=({${REPLY%-}..${#offerings[@]}})"
 			selectByCounts "$@"
 			;;
 
@@ -480,7 +494,7 @@ EOF
 		    [+-]*([0-9])-+([0-9]))
 			local filterAction="${REPLY:0:1}"; filterRange="${REPLY:1}"
 			local startCnt=${filterRange%%-*} endCnt=${filterRange#*-}
-			startCnt=${startCnt:-1} endCnt=${endCnt:-$#}
+			startCnt=${startCnt:-1} endCnt=${endCnt:-${#offerings[@]}}
 			case "$filterAction" in
 			    +)	applyFilter "${@:startCnt:endCnt - startCnt + 1}" || break;;
 			    -)	applyFilter "${@:1:startCnt - 1}" "${@:endCnt + 1}" || break;;
@@ -495,7 +509,7 @@ EOF
 			;;
 		esac
 		if [ "$isBreak" ]; then
-		    printCurrentFilter 'Back' "${filters[@]}"
+		    printCurrentFilter $# 'Back' "${filters[@]}"
 		    break
 		fi
 	    fi
