@@ -327,6 +327,10 @@ else
 	    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
 	fi
     }
+    clearFilters()
+    {
+	filters=()
+    }
     printCurrentFilter()
     {
 	local prefix="${1:?}"; shift
@@ -360,7 +364,7 @@ else
 	    else
 		local isBreak=
 		case "$REPLY" in
-		    .)  filters=();&
+		    .)  clearFilters;&
 		    ..) isBreak=t;;
 		    //) invertCandidates "$@"; isBreak=t;;
 		    ${fuzzyTrigger:-.})
@@ -401,7 +405,7 @@ EOF
 			fi
 			;;
 		    \**( ).)
-			filters=();&
+			clearFilters;&
 		    \**( )..)
 			isBreak=t
 			;&
@@ -409,7 +413,7 @@ EOF
 			selectedEntries+=("$@")
 			;;
 		    +([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    +([0-9])*( )..)
 			selectedEntries+=("${@:${REPLY%%*( )+(.)}:1}")
 			isBreak=t
@@ -420,7 +424,7 @@ EOF
 			printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
 			;;
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( ).)
-			filters=();&
+			clearFilters;&
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -430,7 +434,7 @@ EOF
 			selectByCounts "$@"
 			;;
 		    @(/?(-)|-)+([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    @(/?(-)|-)+([0-9])*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -440,7 +444,7 @@ EOF
 			selectByCounts "$@"
 			;;
 		    +([0-9])-+([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    +([0-9])-+([0-9])*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -450,7 +454,7 @@ EOF
 			selectByCounts "$@"
 			;;
 		    /+([0-9])-+([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    /+([0-9])-+([0-9])*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -460,7 +464,7 @@ EOF
 			selectByCounts "$@"
 			;;
 		    +([0-9])-*( ).)
-			filters=();&
+			clearFilters;&
 		    +([0-9])-*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
