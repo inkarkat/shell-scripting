@@ -403,6 +403,7 @@ EOF
 			    local IFS=' '
 			    printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "$(joinBy ', ' "${selectedEntries[@]}")"
 			fi
+			[ "$isOneEntryPerLine" ] && COLUMNS=1	# XXX: Need to reapply this here somehow?!
 			;;
 		    \**( ).)
 			clearFilters;&
