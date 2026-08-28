@@ -318,26 +318,40 @@ else
     typeset -a filters=()
     applyFilter()
     {
+	local isFilterShowsAll="${1?}"; shift
 	if [ $# -eq 0 ]; then
 	    echo >&2 'No results from filtering.'
 	else
 	    filters+=("$REPLY")
-		selectCandidates "$@"
+		save_isOfferingsLimited="$isOfferingsLimited"
+		save_isShowAll="$isShowAll"
+		[ "$isFilterShowsAll" ] && isShowAll=t
+		    selectCandidates "$@"
+		isShowAll="$save_isShowAll"
+		isOfferingsLimited="$save_isOfferingsLimited"
 		[ ${#filters[@]} -gt 0 ] || return 1
 	    filters=("${filters[@]:0:$((${#filters[@]}-1))}")
+	    setPrompt
 	fi
+    }
+    clearFilters()
+    {
+	filters=()
+	setPrompt
     }
     printCurrentFilter()
     {
+	local entryNum=${1:?}; shift
 	local prefix="${1:?}"; shift
+	local offeringsLimitation; [ "$isOfferingsLimited" ] && offeringsLimitation=" showing ${#offerings[@]} of $entryNum entries"
 	case $# in
 	    0)	;;
 	    1)	printf >&2 '%s at full list of entries; press %s%s%s to show again.\n' \
-		    "$prefix" \
+		    "${prefix}${offeringsLimitation}" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX"
 		;;
 	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show entries again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
-		    "$prefix" \
+		    "${prefix}${offeringsLimitation}" \
 		    "$(printf '%s\n' "${@:1:$(($#-1))}" | surround -- "$COMMANDONSELECTED_FILTER_PREFIX" "$COMMANDONSELECTED_FILTER_SUFFIX" | joinBy - ' | ')" \
 		    "${prefix%%+([^	 ])}" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX" \
@@ -348,17 +362,38 @@ else
 		;;
 	esac
     }
+    setPrompt()
+    {
+	PS3='#'
+	[ ${#filters[@]} -gt 0 ] && PS3="(${PS3})"
+	[ "$isOfferingsLimited" ] && PS3="[${PS3}]"
+	PS3+='? '
+
+    }
+    isShowAll=
     selectCandidates()
     {
 	[ "$isOneEntryPerLine" ] && COLUMNS=1
-	local entry; select entry
+
+	if [ -n "$LINES" ] && [ $# -ge $LINES ] && [ ! "$isShowAll" ]; then
+	    # Not enough space to show all available entries; only show as many as fit the
+	    # screen.
+	    isOfferingsLimited=t
+	    typeset -a offerings=("${@:1:$((LINES - 1))}")
+	else
+	    isOfferingsLimited=
+	    typeset -a offerings=("$@")
+	fi
+
+	setPrompt
+	local entry; select entry in "${offerings[@]}"
 	do
 	    if [ "$entry" ]; then
 		selectedEntries+=("$entry")
 	    else
 		local isBreak=
 		case "$REPLY" in
-		    .)  filters=();&
+		    .)  clearFilters;&
 		    ..) isBreak=t;;
 		    //) invertCandidates "$@"; isBreak=t;;
 		    ${fuzzyTrigger:-.})
@@ -370,8 +405,12 @@ else
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}/N${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all but entry N
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}*${COMMANDONSELECTED_SYNTAX_SUFFIX} selects all entries.
 			    Filtering:
-			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+-9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+3-${COMMANDONSELECTED_SYNTAX_SUFFIX} limits entries to that range
-			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}--9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}-3-${COMMANDONSELECTED_SYNTAX_SUFFIX} excludes entries in that range
+EOF
+			    [ "$isOfferingsLimited" ] && [ ! "$isShowAll" ] \
+				&& echo >&2 "    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+${COMMANDONSELECTED_SYNTAX_SUFFIX} shows all entries (with scrolling)"
+			    cat >&2 <<-EOF
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}+2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+-9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}+3-${COMMANDONSELECTED_SYNTAX_SUFFIX} limits shown entries to that range
+			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}-2-5${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}--9${COMMANDONSELECTED_SYNTAX_SUFFIX} or ${COMMANDONSELECTED_SYNTAX_PREFIX}-3-${COMMANDONSELECTED_SYNTAX_SUFFIX} excludes entries in that range from being shown
 			    · ${COMMANDONSELECTED_SYMBOLIC_PREFIX}PATTERN|GREP-ARGUMENTS [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filter the list
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}\$${COMMANDONSELECTED_SYNTAX_SUFFIX}${COMMANDONSELECTED_SYMBOLIC_PREFIX}SHELL-COMMAND [...]${COMMANDONSELECTED_SYMBOLIC_SUFFIX} filters (or even modifies) the list
 			      (Use normal shell syntax, except backslashes need to be doubled.)
@@ -390,16 +429,17 @@ EOF
 			    · ${COMMANDONSELECTED_SYNTAX_PREFIX}//${COMMANDONSELECTED_SYNTAX_SUFFIX} takes the inversion (i.e. all not selected entries)${fuzzyTrigger:+
     · ${COMMANDONSELECTED_SYNTAX_PREFIX}${fuzzyTrigger}${COMMANDONSELECTED_SYNTAX_SUFFIX} switches to fuzzy matching (using fzf)}
 EOF
-			printCurrentFilter '    Currently' "${filters[@]}" ''
+			printCurrentFilter $# '    Currently' "${filters[@]}" ''
 			if [ ${#selectedEntries[@]} -eq 0 ]; then
 			    echo >&2 'Nothing selected yet.'
 			else
 			    local IFS=' '
 			    printf >&2 '%d out of %d selected: %s\n' ${#selectedEntries[@]} ${#entries[@]} "$(joinBy ', ' "${selectedEntries[@]}")"
 			fi
+			[ "$isOneEntryPerLine" ] && COLUMNS=1	# XXX: Need to reapply this here somehow?!
 			;;
 		    \**( ).)
-			filters=();&
+			clearFilters;&
 		    \**( )..)
 			isBreak=t
 			;&
@@ -407,18 +447,18 @@ EOF
 			selectedEntries+=("$@")
 			;;
 		    +([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    +([0-9])*( )..)
 			selectedEntries+=("${@:${REPLY%%*( )+(.)}:1}")
 			isBreak=t
 			;;
 		    +([0-9]))
-			entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
-			filterNote=; [ $# -lt ${#entries[@]} ] && filterNote=' filtered'
-			printf >&2 'Only %d%s entr%s.\n' $# "$filterNote" "$entryPlural"
+			entryPlural=ies; [ ${#offerings[@]} -eq 1 ] && entryPlural=y
+			filterNote=; [ ${#filters[@]} -eq 0 ] || filterNote='filtered'
+			printf >&2 'Only %d%s entr%s%s.\n' ${#offerings[@]} "${filterNote:+ }${filterNote}" "$entryPlural" "${isOfferingsLimited:+ shown}"
 			;;
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( ).)
-			filters=();&
+			clearFilters;&
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -428,7 +468,7 @@ EOF
 			selectByCounts "$@"
 			;;
 		    @(/?(-)|-)+([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    @(/?(-)|-)+([0-9])*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -438,7 +478,7 @@ EOF
 			selectByCounts "$@"
 			;;
 		    +([0-9])-+([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    +([0-9])-+([0-9])*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -448,7 +488,7 @@ EOF
 			selectByCounts "$@"
 			;;
 		    /+([0-9])-+([0-9])*( ).)
-			filters=();&
+			clearFilters;&
 		    /+([0-9])-+([0-9])*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
@@ -458,25 +498,33 @@ EOF
 			selectByCounts "$@"
 			;;
 		    +([0-9])-*( ).)
-			filters=();&
+			clearFilters;&
 		    +([0-9])-*( )..)
 			REPLY="${REPLY%%*( )+(.)}"
 			isBreak=t
 			;&
 		    +([0-9])-)
-			eval "selected=({${REPLY%-}..$#})"
+			eval "selected=({${REPLY%-}..${#offerings[@]}})"
 			selectByCounts "$@"
 			;;
 
+		    +)	if [ "$isShowAll" ]; then
+			    echo >&2 'Already showing all entries.'
+			else
+			    isShowAll=t
+			    selectCandidates "$@"
+			    isBreak=t
+			fi
+			;;
 		    [+-]+([0-9])-*([0-9]))
 			;&
 		    [+-]*([0-9])-+([0-9]))
 			local filterAction="${REPLY:0:1}"; filterRange="${REPLY:1}"
 			local startCnt=${filterRange%%-*} endCnt=${filterRange#*-}
-			startCnt=${startCnt:-1} endCnt=${endCnt:-$#}
+			startCnt=${startCnt:-1} endCnt=${endCnt:-${#offerings[@]}}
 			case "$filterAction" in
-			    +)	applyFilter "${@:startCnt:endCnt - startCnt + 1}" || break;;
-			    -)	applyFilter "${@:1:startCnt - 1}" "${@:endCnt + 1}" || break;;
+			    +)	applyFilter t "${@:startCnt:endCnt - startCnt + 1}" || break;;
+			    -)	applyFilter t "${@:1:startCnt - 1}" "${@:endCnt + 1}" || break;;
 			    *)	printf >&2 'ASSERT: Invalid filterAction: %s\n' "$filterAction"; exit 3;;
 			esac
 			;;
@@ -484,11 +532,11 @@ EOF
 			    && local filterCommand="${REPLY#\$}" \
 			    || local filterCommand="grep $REPLY"
 			typeset -a filteredEntries=(); readarray -t filteredEntries < <(unset IFS; printf '%s\n' "$@" | eval "$filterCommand")
-			applyFilter "${filteredEntries[@]}" || break
+			applyFilter '' "${filteredEntries[@]}" || break
 			;;
 		esac
 		if [ "$isBreak" ]; then
-		    printCurrentFilter 'Back' "${filters[@]}"
+		    printCurrentFilter $# 'Back' "${filters[@]}"
 		    break
 		fi
 	    fi
