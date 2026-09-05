@@ -1,0 +1,30 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Invoke COMMAND with the second match in PATH for COMMAND. If there's only one
+match, use that one.
+HELPTEXT
+    echo
+    printf 'Usage: %q %s\n' "$(basename "$1")" '[--] COMMAND [ARGS ...] [-?|-h|--help]'
+}
+
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --)			shift;;
+esac
+if [ $# -eq 0 ]; then
+    printUsage "$0" >&2
+    exit 2
+fi
+commandName="${1:?}"; shift
+
+readarray -t commandFilespecs < <(which -a "$commandName")
+case ${#commandFilespecs[@]} in
+    0)	exit 127;;
+    1)	commandFilespec="${commandFilespecs[0]}";;
+    *)	commandFilespec="${commandFilespecs[1]}";;
+esac
+
+exec "$commandFilespec" "$@"
