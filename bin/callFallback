@@ -3,8 +3,8 @@
 printUsage()
 {
     cat <<HELPTEXT
-Invoke COMMAND with the second match in PATH for COMMAND. If there's only one
-match, use that one.
+Invoke COMMAND with the second match in PATH for COMMAND (that's not just a
+hardlink to the previous match). If there's only one match, use that one.
 HELPTEXT
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" '[--] COMMAND [ARGS ...] [-?|-h|--help]'
@@ -20,11 +20,19 @@ if [ $# -eq 0 ]; then
 fi
 commandName="${1:?}"; shift
 
-readarray -t commandFilespecs < <(which -a "$commandName")
-case ${#commandFilespecs[@]} in
-    0)	exit 127;;
-    1)	commandFilespec="${commandFilespecs[0]}";;
-    *)	commandFilespec="${commandFilespecs[1]}";;
-esac
+previousCommandFilespec=
+secondCommandFilespec=
+while IFS=$'\n' read -r commandFilespec
+do
+    # Ignore same hardlinked command in different PATH locations.
+    [ "$commandFilespec" -ef "$previousCommandFilespec" ] \
+	&& continue
 
-exec "$commandFilespec" "$@"
+    [ -z "$previousCommandFilespec" ] \
+	|| : ${secondCommandFilespec:="$commandFilespec"}
+
+    previousCommandFilespec="$commandFilespec"
+done < <(which -a "$commandName")
+[ -n "$previousCommandFilespec" ] || exit 127
+
+exec "${secondCommandFilespec:-$previousCommandFilespec}" "$@"
