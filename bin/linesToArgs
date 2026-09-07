@@ -101,7 +101,16 @@ if [ -z "$commands" ]; then
 fi >&2
 
 
-readarray -t lines
+# Prevent that readarray consumes following lines by reading from stdin.
+# Instead, redirect stdin directly from the terminal (if available), or the null
+# device. Note: For some commands, you can also directly influence their
+# behavior; e.g. ssh -n.
+exec 3<&0
+# Force reading directly from terminal / null device if stdin is redirected,
+# to avoid consuming input.
+{ exec 0</dev/tty; } 2>/dev/null || exec </dev/null
+
+<&3 readarray -t lines
 [ ${#lines[@]} -eq 0 ] && [ ! "$isRunIfEmpty" ] && exit 0
 
 if [ -n "$prefix" -o -n "$suffix" -o ${#beforeArgs[@]} -gt 0 -o ${#afterArgs[@]} -gt 0 ]; then

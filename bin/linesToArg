@@ -198,8 +198,17 @@ case "$with" in
 	    reportProgress() { :; }
 	fi
 
+	# Prevent that read consumes following lines by reading from stdin.
+	# Instead, redirect stdin directly from the terminal (if available), or the null
+	# device. Note: For some commands, you can also directly influence their
+	# behavior; e.g. ssh -n.
+	exec 3<&0
+	# Force reading directly from terminal / null device if stdin is redirected,
+	# to avoid consuming input.
+	{ exec 0</dev/tty; } 2>/dev/null || exec </dev/null
+
 	status=
-	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
+	while IFS=$'\n' <&3 read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
 	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
 		setStatus $exitStatus; eval "$betweenCommand"; exitStatus=$?
@@ -216,6 +225,8 @@ case "$with" in
 	    interpolatedCommands="${commands//"$argMarker"/$quotedLine}"
 	    [ "$interpolatedCommands" = "$commands" ] || quotedLine=''
 
+	    # As arguments are being read from stdin, reconnect it directly to the terminal
+	    # in case the COMMAND(s) need input (e.g. confirmations).
 	    eval "$interpolatedCommands" "$quotedLine"; exitStatus=$?
 	    if [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
 		status=$exitStatus
