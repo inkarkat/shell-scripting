@@ -11,7 +11,7 @@ _A collection of shell scripts that simplify scripting tasks around argument han
 * [inkarkat/shell-filters](https://github.com/inkarkat/shell-filters) for the `commandWithHiddenId` command
 * [inkarkat/miniDB](https://github.com/inkarkat/miniDB) for the `dishOutSections` command
 * [inkarkat/shell-debugging](https://github.com/inkarkat/shell-debugging) for debugging (optional)
-* automated testing is done with _bats - Bash Automated Testing System_ (https://github.com/bats-core/bats-core)
+* automated testing is done with _Bats_ - [Bash Automated Testing System](https://github.com/bats-core/bats-core)
 
 ### Installation
 
