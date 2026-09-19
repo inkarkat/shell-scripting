@@ -167,39 +167,67 @@ selectionMessage=
 interactiveSelectionMessage=
 haveEntries=
 typeset -a entries=()
+option() { :; }
+parameter() { :; }
+parameterToSep() { :; }
+argCount() { :; }
+endOfOptionsAndParameters() { :; }
+noUnderstand() { :; }
+typeset -A understandsSubtopics=()
+isUnderstandSubtopic() {
+    [ $# -gt 0 -a ${#understandsSubtopics[@]} -gt 0 ] || return 0
+    local subtopic; for subtopic
+    do
+	[ "${understandsSubtopics["$subtopic"]}" ] && return 0
+    done
+    return 1
+}
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	    shift; printLongUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--understand-for)
+			shift; understandsSubtopics["$1"]=t; shift;;
+	--understands)	shift
+			option() { isUnderstandSubtopic "$@" || exit 1; printf 1; exit 0; }
+			parameter() { isUnderstandSubtopic "$@" || exit 1; printf 2; exit 0; }
+			parameterToSep() { argCount "$@"; }
+			argCount() { local argCount="${1:?}"; shift; isUnderstandSubtopic "$@" || exit 1; printf $argCount; exit 0; }
+			endOfOptionsAndParameters() { exit 99; }
+			noUnderstand() { exit 1; }
+			;;
+
 	--format=single-column|-1)
-			    shift; isOneEntryPerLine=t;;
+			    shift; isOneEntryPerLine=t; option config;;
 	--format)	    shift
 			    case "$1" in
 				single-column) isOneEntryPerLine=t;;
 				*) printf 'ERROR: Unknown format "%s".\n' "$1"; echo; printUsage "$0"; exit 2;;
 			    esac
 			    shift
+			    parameter config
 			    ;;
-	--accept-single)    shift; isAcceptSingle=t;;
-	--single-only)	    shift; isMultiSelect=;;
-	--stdin)	    shift; isStdin=t;;
-	--generator|-g)	    shift; generator="$1"; shift;;
-	--filter|-f)	    shift; filter="$1"; shift;;
-	--post-filter)	    shift; postFilter="$1"; shift;;
-	--command|-c)	    shift; targetCommands+="${targetCommands:+ $COMMANDONSELECTED_COMMAND_JOINER }$1"; shift;;
+	--accept-single)    shift; isAcceptSingle=t; option config;;
+	--single-only)	    shift; isMultiSelect=; option config;;
+	--stdin)	    shift; isStdin=t; option input;;
+	--generator|-g)	    shift; generator="$1"; shift; parameter input;;
+	--filter|-f)	    shift; filter="$1"; shift; parameter input;;
+	--post-filter)	    shift; postFilter="$1"; shift; parameter input;;
+	--command|-c)	    shift; targetCommands+="${targetCommands:+ $COMMANDONSELECTED_COMMAND_JOINER }$1"; shift; parameter output;;
 	--allow-literal-match)
-			    shift; matchFunction=selectByMatch;;
-	--allow-glob-match) shift; matchFunction=selectByGlob;;
-	--prompt|-p)	    shift; prompt="$1"; shift;;
+			    shift; matchFunction=selectByMatch; option match;;
+	--allow-glob-match) shift; matchFunction=selectByGlob; option match;;
+	--prompt|-p)	    shift; prompt="$1"; shift; parameter ui;;
 	--no-entries-message)
-			    shift; noEntriesMessage="$1"; shift;;
+			    shift; noEntriesMessage="$1"; shift; parameter ui;;
 	--auto-selected-entry-message)
-			    shift; autoSelectedEntryMessage="$1"; shift;;
+			    shift; autoSelectedEntryMessage="$1"; shift; parameter ui;;
 	--selection-message)
-			    shift; selectionMessage="$1"; shift;;
+			    shift; selectionMessage="$1"; shift; parameter ui;;
 	--interactive-selection-message)
-			    shift; interactiveSelectionMessage="$1"; shift;;
-	--entries-separated-by|-E)	    shift
+			    shift; interactiveSelectionMessage="$1"; shift; parameter ui;;
+	--entries-separated-by|-E)
+			    originalArgNum=$#; shift
 			    sep="${1:?}"; shift
 			    until [ "$1" = "$sep" ]
 			    do
@@ -214,16 +242,18 @@ do
 			    done
 			    shift
 			    haveEntries=t
+			    argCount $((originalArgNum - $#)) input
 			    ;;
-	--entries|-e)	    shift
+	--entries|-e)	    originalArgNum=$#; shift
 			    until [ $# -eq 0 -o "$1" = '--' ]
 			    do
 				entries+=("$1"); shift
 			    done
 			    haveEntries=t
+			    argCount $((originalArgNum - $#)) input
 			    ;;
 	--)		    shift; break;;
-	-[^0-9]*)	    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	-[^0-9]*)	    noUnderstand; { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		    break;
     esac
 done
@@ -236,24 +266,24 @@ typeset -a matches=()
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--)			shift; break;;
+	--)			endOfOptionsAndParameters; shift; break;;
 	//)			if [ "$isFirstSelection" ]; then shift; isSubtract=t; fi
-				break
+				option selection; break
 				;;
 	${fuzzyTrigger:---})	if [ -n "$isFirstSelection" -a $# -eq 1 ]; then shift; isFuzzySelection=t; fi
-				break
+				option selection; break
 				;;
-	?(/?(-)|-)+([0-9]))	selected+=("$1"); shift;;
-	+([0-9])-+([0-9]))	eval "selected+=({${1/-/..}})"; shift;;
-	/+([0-9])-+([0-9]))	range="${1#/}"; eval "selected+=(/{${range/-/..}})"; shift;;
+	?(/?(-)|-)+([0-9]))	selected+=("$1"); shift; option selection;;
+	+([0-9])-+([0-9]))	eval "selected+=({${1/-/..}})"; shift; option selection;;
+	/+([0-9])-+([0-9]))	range="${1#/}"; eval "selected+=(/{${range/-/..}})"; shift; option selection;;
 	+([0-9])-)		if [ "$1" = '1-' ]; then echo >&2 "Cannot select all entries like this."; exit 2; fi
-				previous=$((${1%-} - 1)); eval "selected+=(/{1..$previous})"; shift
+				previous=$((${1%-} - 1)); eval "selected+=(/{1..$previous})"; shift; option selection
 				;;
 	*)			if [ -n "$matchFunction" ]; then
 				    matches+=("$1")
-				    shift
+				    shift; option selection
 				else
-				    break
+				    endOfOptionsAndParameters; break
 				fi
 				;;
     esac
