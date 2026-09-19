@@ -27,7 +27,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-1|--format=single-column] [--accept-single [--auto-selected-entry-message MSG]] [--single-only] [-p|--prompt PROMPT] [--no-entries-message MSG] [--selection-message MSG] [--interactive-selection-message MSG] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [-?|-h|--help] ..."
+    printf 'Usage: %q %s\n' "$(basename "$1")" "[-1|--format=single-column] [--accept-single [--auto-selected-entry-message MSG]] [--single-only] [-p|--prompt PROMPT] [--no-entries-message MSG] [--selection-message MSG] [--interactive-selection-message MSG] [--entry-name WHAT[,PLURAL-WHAT]] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [-?|-h|--help] ..."
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... [--] [SELECTION ...] [-- ENTRIES ...]"
     printf 'Usage: %q %s\n' "$(basename "$1")" "... -E|--entries-separated-by ; [ENTRIES ...] ; [--] [SELECTION ...]"
@@ -101,6 +101,10 @@ are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMa
 		    interactively, but not through SELECTION); if the number of
 		    entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else,
 		    only a count is passed, both to be referenced by %s in MSG.
+    --entry-name WHAT[,PLURAL-WHAT]
+		    Use WHAT (e.g. "line", "file", you can also pass a separate
+		    (non-regular) plural form: "entry,entries") instead of
+		    "entry" in messages.
     --post-filter FILTER
 		    Pass the selected entries as individual arguments to FILTER
 		    (${postFilterMarker:+either }appended${postFilterMarker:+ or replacing $postFilterMarker}), which should return
@@ -167,6 +171,8 @@ selectionMessage=
 interactiveSelectionMessage=
 haveEntries=
 typeset -a entries=()
+entryName=entry
+entryNamePlural=entries
 option() { :; }
 parameter() { :; }
 parameterToSep() { :; }
@@ -226,6 +232,16 @@ do
 			    shift; selectionMessage="$1"; shift; parameter ui;;
 	--interactive-selection-message)
 			    shift; interactiveSelectionMessage="$1"; shift; parameter ui;;
+	--entry-name)	    shift
+			    case "${1:?}" in
+				*,*)	entryName="${1%%,*}"
+					entryNamePlural="${1#*,}"
+					;;
+				*)	entryName="$1"
+					entryNamePlural="${1}s"
+					;;
+			    esac; shift; parameter ui
+			    ;;
 	--entries-separated-by|-E)
 			    originalArgNum=$#; shift
 			    sep="${1:?}"; shift
@@ -376,15 +392,17 @@ else
 	local offeringsLimitation; [ "$isOfferingsLimited" ] && offeringsLimitation=" showing ${#offerings[@]} of $entryNum entries"
 	case $# in
 	    0)	;;
-	    1)	printf >&2 '%s at full list of entries; press %s%s%s to show again.\n' \
+	    1)	printf >&2 '%s at full list of %s; press %s%s%s to show again.\n' \
 		    "${prefix}${offeringsLimitation}" \
+		    "$entryNamePlural" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX"
 		;;
-	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show entries again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
+	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show %s again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
 		    "${prefix}${offeringsLimitation}" \
 		    "$(printf '%s\n' "${@:1:$(($#-1))}" | surround -- "$COMMANDONSELECTED_FILTER_PREFIX" "$COMMANDONSELECTED_FILTER_SUFFIX" | joinBy - ' | ')" \
 		    "${prefix%%+([^	 ])}" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX" \
+		    "$entryNamePlural" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Ctrl-D "$COMMANDONSELECTED_KEY_SUFFIX" \
 		    "$COMMANDONSELECTED_SYNTAX_PREFIX" .. "$COMMANDONSELECTED_SYNTAX_SUFFIX" \
 		    "${prefix%%+([^	 ])}" \
@@ -483,9 +501,9 @@ EOF
 			isBreak=t
 			;;
 		    +([0-9]))
-			entryPlural=ies; [ ${#offerings[@]} -eq 1 ] && entryPlural=y
+			entryPlural="$entryNamePlural"; [ ${#offerings[@]} -eq 1 ] && entryPlural="$entryName"
 			filterNote=; [ ${#filters[@]} -eq 0 ] || filterNote='filtered'
-			printf >&2 'Only %d%s entr%s%s.\n' ${#offerings[@]} "${filterNote:+ }${filterNote}" "$entryPlural" "${isOfferingsLimited:+ shown}"
+			printf >&2 'Only %d%s %s%s.\n' ${#offerings[@]} "${filterNote:+ }${filterNote}" "$entryPlural" "${isOfferingsLimited:+ shown}"
 			;;
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( ).)
 			clearFilters;&
@@ -598,8 +616,8 @@ EOF
 	    isFirst=
 
 	    if [ $count -lt 1 -o $count -gt $# ]; then
-		entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
-		printf >&2 'Only %d entr%s.\n' $# "$entryPlural"
+		entryPlural="$entryNamePlural"; [ $# -eq 1 ] && entryPlural="$entryName"
+		printf >&2 'Only %d %s.\n' $# "$entryPlural"
 		exit 2
 	    fi
 
@@ -659,7 +677,7 @@ fi
 [ ${#selectedEntries[@]} -eq 0 ] && exit 125
 
 if [ ! "$isMultiSelect" -a ${#selectedEntries[@]} -gt 1 ]; then
-    printf >&2 'Note: %d entries selected; ignoring all but the first.\n' "${#selectedEntries[@]}"
+    printf >&2 'Note: %d %s selected; ignoring all but the first.\n' "${#selectedEntries[@]}" "$entryNamePlural"
     selectedEntries=("${selectedEntries[0]}")
 fi
 
