@@ -23,20 +23,174 @@ postFilterMarker="$COMMANDONSELECTED_POST_FILTER_MARKER"; unset COMMANDONSELECTE
 
 fuzzyTrigger=; callable fzf && fuzzyTrigger=z
 
+getShortUsage()
+{
+    local usageSep
+    [ $# -gt 0 ] || set -- ''
+    while [ $# -gt 0 ]
+    do
+	local hadTopic=
+	case "$1" in
+	    ''|config)
+		printf %s "${usageSep}${hadTopic:+ }" '[-1|--format=single-column] [--accept-single] [--single-only]'; hadTopic=t;;&
+	    ''|match)
+		printf %s "${usageSep}${hadTopic:+ }" '--allow-literal-match|--allow-glob-match'; hadTopic=t;;&
+	    ''|entries)
+		printf %s "${usageSep}${hadTopic:+ }" '-E|--entries-separated-by ; [ENTRIES ...] ;'; hadTopic=t;;&
+	    ''|stdin)
+		printf %s "${usageSep}${hadTopic:+ }" '--stdin'; hadTopic=t;;&
+	    ''|input)
+		printf %s "${usageSep}${hadTopic:+ }" '[-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER]'; hadTopic=t;;&
+	    ''|output)
+		printf %s "${usageSep}${hadTopic:+ }" '[-c|--command \"COMMANDLINE\" [-c ...]]'; hadTopic=t;;&
+	    ''|selection)
+		printf %s "${usageSep}${hadTopic:+ }" 'SELECTION'; hadTopic=t;;&
+	    ''|ui)
+		printf %s "${usageSep}${hadTopic:+ }" '[-p|--prompt PROMPT] [--auto-selected-entry-message MSG] [--no-entries-message MSG] [--selection-message MSG] [--interactive-selection-message MSG] [--entry-name WHAT[,PLURAL-WHAT]]'; hadTopic=t;;&
+	    *)  [ "$hadTopic" ] || { echo "ERROR: Unknown short usage topic \"$1\"!" >&2; return 2; };;
+	esac
+	shift; usageSep=' '
+    done
+}
+getLongUsage()
+{
+    local -r SELECTION="$(getShortUsage selection)"
+    [ $# -gt 0 ] || set -- ''
+    while [ $# -gt 0 ]
+    do
+	local topic="$1"; shift
+	local hadTopic=
+	case "$topic" in
+	    ''|config)
+		cat <<HELPTEXT
+    --format=single-column|-1
+		    List one entry per line instead of the default columnar
+		    format.
+    --accept-single Accept a single available ENTRY without prompting the user.
+    --single-only   The querying stops when at least one entry has been selected
+		    (and any additional ones are ignored and a warning is
+		    printed).
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|match)
+		cat <<HELPTEXT
+    --allow-literal-match
+		    In addition to the numerical SELECTIONs, literal MATCHes can
+		    be passed as arguments (then the -- separator to any
+		    following ENTRIES is mandatory). Any entry that equals a
+		    MATCH is selected. Multiple arguments must be all MATCHes or
+		    all SELECTIONs; mixing is not allowed.
+    --allow-glob-match
+		    In addition to the numerical SELECTIONs, MATCH globs (e.g.
+		    \?oo\*) can be passed as arguments (then the -- separator to
+		    any following ENTRIES is mandatory). Any entry that matches
+		    an (anchored, extended) glob MATCH is selected. Multiple
+		    arguments must be all MATCHes or all SELECTIONs; mixing is
+		    not allowed.
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|entries)
+		cat <<HELPTEXT
+    --entries-separated-by|-E ; [ENTRIES ...] ;
+		    Any arguments between ; and ; (or any other separator) as
+		    entries. This alternative form allows to pass SELECTIONs at
+		    the end and prevents the user from sneaking in additional
+		    ENTRIES via "$SELECTION -- ENTRY", and therefore is the
+		    preferred form and especially useful for shell aliases.
+    --entries|-e [ENTRIES ...]
+		    ENTRIES follow, and any SELECTIONs after that, separated by
+		    --. This is useful for a GENERATOR that produces entries and
+		    takes options and parameters instead of filtering the passed
+		    arguments, because then the
+		    GENERATOR [(option-)ENTRY ...] [-- $SELECTION ...]
+		    syntax can be used, which is more natural than
+		    GENERATOR [--] $SELECTION [...] [-- (option-)ENTRY ...]
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|stdin)
+		cat <<HELPTEXT
+    --stdin	    Read entries from standard input; each line is one entry;
+		    these are appended to any entries passed via
+		    --entries-separated-by.
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|input)
+		cat <<HELPTEXT
+    --post-filter FILTER
+		    Pass the selected entries as individual arguments to FILTER
+		    (${postFilterMarker:+either }appended${postFilterMarker:+ or replacing $postFilterMarker}), which should return
+		    each on a separate line, before these are passed to
+		    COMMANDLINE [or printed].
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|output)
+		cat <<HELPTEXT
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|selection)
+		cat <<HELPTEXT
+If SELECTIONs are passed, the resulting entries are selected from them.
+Selection works by numbers, starting with 1 for the first entry; you can also
+use enumerations (1 3 4) and ranges (2-5 or 3-; instead of relying on brace
+expansion {2..5}); negative numbers select from the end, so -1 is the last one.
+/N selects all but entry N; // starts interactive subtraction from all passed
+entries.${fuzzyTrigger:+
+$fuzzyTrigger starts selection via fuzzy matching (using fzf).}
+HELPTEXT
+		hadTopic=t
+		;;&
+	    ''|ui)
+		cat <<HELPTEXT
+    --prompt|-p PROMPT
+		    Print PROMPT before showing the entries.
+    --no-entries-message MSG
+		    Print MSG to stderr if there are no entries to choose from.
+    --auto-selected-entry-message MSG
+		    Print MSG to stderr if a single entry has been automatically
+		    chosen; the entry itself is referenced by %s in MSG.
+    --selection-message MSG
+		    Print MSG to stderr if entries have been chosen (either
+		    interactively or through SELECTION, but not when a single
+		    entry is automatically chosen); if the number of entries is
+		    $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else, only a count
+		    is passed, both to be referenced by %s in MSG.
+    --interactive-selection-message MSG
+		    Print MSG to stderr if entries have been chosen
+		    interactively, but not through SELECTION); if the number of
+		    entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else,
+		    only a count is passed, both to be referenced by %s in MSG.
+    --entry-name WHAT[,PLURAL-WHAT]
+		    Use WHAT (e.g. "line", "file", you can also pass a separate
+		    (non-regular) plural form: "entry,entries") instead of
+		    "entry" in messages.
+HELPTEXT
+		hadTopic=t
+		;;&
+	    *)  [ "$hadTopic" ] || { echo "ERROR: Unknown long usage topic \"$topic\"!" >&2; return 2; };;
+	esac
+    done
+}
 printShortUsage()
 {
+    local -r SELECTION="$(getShortUsage selection)"
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-1|--format=single-column] [--accept-single [--auto-selected-entry-message MSG]] [--single-only] [-p|--prompt PROMPT] [--no-entries-message MSG] [--selection-message MSG] [--interactive-selection-message MSG] [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--post-filter FILTER] [-c|--command \"COMMANDLINE\" [-c ...]] [-?|-h|--help] ..."
+    printf 'Usage: %q %s\n' "$(basename "$1")" "$(getShortUsage config) $(getShortUsage ui) $(getShortUsage input) $(getShortUsage output) [-?|-h|--help] ..."
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... [--] [SELECTION ...] [-- ENTRIES ...]"
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... -E|--entries-separated-by ; [ENTRIES ...] ; [--] [SELECTION ...]"
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... -e|--entries [ENTRIES ...] [-- SELECTION ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... [--] [$SELECTION ...] [-- ENTRIES ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... $(getShortUsage entries) [--] [$SELECTION ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... -e|--entries [ENTRIES ...] [-- $SELECTION ...]"
     echo
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... --allow-literal-match|--allow-glob-match [--] [MATCH ...|SELECTION ...] -- [ENTRIES ...]"
-    printf 'Usage: %q %s\n' "$(basename "$1")" "... --allow-literal-match|--allow-glob-match -E|--entries-separated-by ; [ENTRIES ...] ; [--] [MATCH ...|SELECTION ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... $(getShortUsage match) [--] [MATCH ...|$SELECTION ...] -- [ENTRIES ...]"
+    printf 'Usage: %q %s\n' "$(basename "$1")" "... $(getShortUsage match) $(getShortUsage entries) [--] [MATCH ...|$SELECTION ...]"
     echo
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" '... [-E|--entries-separated-by ; [ENTRIES ...] ;] --stdin [-c ...]'
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "... [$(getShortUsage entries)] $(getShortUsage stdin) $(getShortUsage output)"
 }
 printUsage()
 {
@@ -62,80 +216,17 @@ Passed ENTRIES are then passed to GENERATOR for further filtering unless FILTER
 is given, in which case it is passed to it, or taken as-is if FILTER is empty.
 ENTRIES are ${filterMarker:+either }appended${filterMarker:+ or replace any $filterMarker}; they should be returned as
 separate lines.
-If SELECTIONs are passed, the resulting entries are selected from them.
-Selection works by numbers, starting with 1 for the first entry; you can also
-use enumerations (1 3 4) and ranges (2-5 or 3-; instead of relying on brace
-expansion {2..5}); negative numbers select from the end, so -1 is the last one.
-/N selects all but entry N; // starts interactive subtraction from all passed
-entries.${fuzzyTrigger:+
-$fuzzyTrigger starts selection via fuzzy matching (using fzf).}
-
+HELPTEXT
+    getLongUsage selection
+    cat <<HELPTEXT
 Without SELECTIONs, show a (numbered) list of them to the user, and ask for
 selections (or allow further filtering of the list by in-/excluding ranges, via
 grep or any shell command, or invert the selection via //). The selected entries
 are then passed to the COMMANDLINE (${entriesMarker:+either }appended${entriesMarker:+ or replacing any $entriesMarker marker})
 [or printed].
-
-    --format=single-column|-1
-		    List one entry per line instead of the default columnar
-		    format.
-    --accept-single Accept a single available ENTRY without prompting the user.
-    --single-only   The querying stops when at least one entry has been selected
-		    (and any additional ones are ignored and a warning is
-		    printed).
-    --prompt|-p PROMPT
-		    Print PROMPT before showing the entries.
-    --no-entries-message MSG
-		    Print MSG to stderr if there are no entries to choose from.
-    --auto-selected-entry-message MSG
-		    Print MSG to stderr if a single entry has been automatically
-		    chosen; the entry itself is referenced by %s in MSG.
-    --selection-message MSG
-		    Print MSG to stderr if entries have been chosen (either
-		    interactively or through SELECTION, but not when a single
-		    entry is automatically chosen); if the number of entries is
-		    $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else, only a count
-		    is passed, both to be referenced by %s in MSG.
-    --interactive-selection-message MSG
-		    Print MSG to stderr if entries have been chosen
-		    interactively, but not through SELECTION); if the number of
-		    entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else,
-		    only a count is passed, both to be referenced by %s in MSG.
-    --post-filter FILTER
-		    Pass the selected entries as individual arguments to FILTER
-		    (${postFilterMarker:+either }appended${postFilterMarker:+ or replacing $postFilterMarker}), which should return
-		    each on a separate line, before these are passed to
-		    COMMANDLINE [or printed].
-    --allow-literal-match
-		    In addition to the numerical SELECTIONs, literal MATCHes can
-		    be passed as arguments (then the -- separator to any
-		    following ENTRIES is mandatory). Any entry that equals a
-		    MATCH is selected. Multiple arguments must be all MATCHes or
-		    all SELECTIONs; mixing is not allowed.
-    --allow-glob-match
-		    In addition to the numerical SELECTIONs, MATCH globs (e.g.
-		    \?oo\*) can be passed as arguments (then the -- separator to
-		    any following ENTRIES is mandatory). Any entry that matches
-		    an (anchored, extended) glob MATCH is selected. Multiple
-		    arguments must be all MATCHes or all SELECTIONs; mixing is
-		    not allowed.
-    --entries-separated-by|-E ; [ENTRIES ...] ;
-		    Any arguments between ; and ; (or any other separator) as
-		    entries. This alternative form allows to pass SELECTIONs at
-		    the end and prevents the user from sneaking in additional
-		    ENTRIES via "SELECTION -- ENTRY", and therefore is the
-		    preferred form and especially useful for shell aliases.
-    --entries|-e [ENTRIES ...]
-		    ENTRIES follow, and any SELECTIONs after that, separated by
-		    --. This is useful for a GENERATOR that produces entries and
-		    takes options and parameters instead of filtering the passed
-		    arguments, because then the
-		    GENERATOR [(option-)ENTRY ...] [-- SELECTION ...]
-		    syntax can be used, which is more natural than
-		    GENERATOR [--] SELECTION [...] [-- (option-)ENTRY ...]
-    --stdin	    Read entries from standard input; each line is one entry;
-		    these are appended to any entries passed via
-		    --entries-separated-by.
+HELPTEXT
+    getLongUsage config ui input match entries stdin output
+    cat <<HELPTEXT
 EXIT STATUS:
     0	Complete success.
     2	Bad selection, invocation, wrong or missing command-line arguments.
@@ -167,39 +258,83 @@ selectionMessage=
 interactiveSelectionMessage=
 haveEntries=
 typeset -a entries=()
+entryName=entry
+entryNamePlural=entries
+option() { :; }
+parameter() { :; }
+parameterToSep() { :; }
+argCount() { :; }
+endOfOptionsAndParameters() { :; }
+noUnderstand() { :; }
+typeset -A understandsSubtopics=()
+isUnderstandSubtopic() {
+    [ $# -gt 0 -a ${#understandsSubtopics[@]} -gt 0 ] || return 0
+    local subtopic; for subtopic
+    do
+	[ "${understandsSubtopics["$subtopic"]}" ] && return 0
+    done
+    return 1
+}
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--help|-h|-\?)	    shift; printLongUsage "$0"; exit 0;;
+	--help|-h|-\?)	shift; printLongUsage "$0"; exit 0;;
+	--get-short-usage)
+			shift; getShortUsage "$@"; exit $?;;
+	--get-long-usage)
+			shift; getLongUsage "$@"; exit $?;;
+	--understand-for)
+			shift; understandsSubtopics["$1"]=t; shift;;
+	--understands)	shift
+			option() { isUnderstandSubtopic "$@" || exit 1; printf 1; exit 0; }
+			parameter() { isUnderstandSubtopic "$@" || exit 1; printf 2; exit 0; }
+			parameterToSep() { argCount "$@"; }
+			argCount() { local argCount="${1:?}"; shift; isUnderstandSubtopic "$@" || exit 1; printf $argCount; exit 0; }
+			endOfOptionsAndParameters() { exit 99; }
+			noUnderstand() { exit 1; }
+			;;
+
 	--format=single-column|-1)
-			    shift; isOneEntryPerLine=t;;
+			    shift; isOneEntryPerLine=t; option config;;
 	--format)	    shift
 			    case "$1" in
 				single-column) isOneEntryPerLine=t;;
 				*) printf 'ERROR: Unknown format "%s".\n' "$1"; echo; printUsage "$0"; exit 2;;
 			    esac
 			    shift
+			    parameter config
 			    ;;
-	--accept-single)    shift; isAcceptSingle=t;;
-	--single-only)	    shift; isMultiSelect=;;
-	--stdin)	    shift; isStdin=t;;
-	--generator|-g)	    shift; generator="$1"; shift;;
-	--filter|-f)	    shift; filter="$1"; shift;;
-	--post-filter)	    shift; postFilter="$1"; shift;;
-	--command|-c)	    shift; targetCommands+="${targetCommands:+ $COMMANDONSELECTED_COMMAND_JOINER }$1"; shift;;
+	--accept-single)    shift; isAcceptSingle=t; option config;;
+	--single-only)	    shift; isMultiSelect=; option config;;
+	--stdin)	    shift; isStdin=t; option stdin;;
+	--generator|-g)	    shift; generator="$1"; shift; parameter input;;
+	--filter|-f)	    shift; filter="$1"; shift; parameter input;;
+	--post-filter)	    shift; postFilter="$1"; shift; parameter input;;
+	--command|-c)	    shift; targetCommands+="${targetCommands:+ $COMMANDONSELECTED_COMMAND_JOINER }$1"; shift; parameter output;;
 	--allow-literal-match)
-			    shift; matchFunction=selectByMatch;;
-	--allow-glob-match) shift; matchFunction=selectByGlob;;
-	--prompt|-p)	    shift; prompt="$1"; shift;;
+			    shift; matchFunction=selectByMatch; option match;;
+	--allow-glob-match) shift; matchFunction=selectByGlob; option match;;
+	--prompt|-p)	    shift; prompt="$1"; shift; parameter ui;;
 	--no-entries-message)
-			    shift; noEntriesMessage="$1"; shift;;
+			    shift; noEntriesMessage="$1"; shift; parameter ui;;
 	--auto-selected-entry-message)
-			    shift; autoSelectedEntryMessage="$1"; shift;;
+			    shift; autoSelectedEntryMessage="$1"; shift; parameter ui;;
 	--selection-message)
-			    shift; selectionMessage="$1"; shift;;
+			    shift; selectionMessage="$1"; shift; parameter ui;;
 	--interactive-selection-message)
-			    shift; interactiveSelectionMessage="$1"; shift;;
-	--entries-separated-by|-E)	    shift
+			    shift; interactiveSelectionMessage="$1"; shift; parameter ui;;
+	--entry-name)	    shift
+			    case "${1:?}" in
+				*,*)	entryName="${1%%,*}"
+					entryNamePlural="${1#*,}"
+					;;
+				*)	entryName="$1"
+					entryNamePlural="${1}s"
+					;;
+			    esac; shift; parameter ui
+			    ;;
+	--entries-separated-by|-E)
+			    originalArgNum=$#; shift
 			    sep="${1:?}"; shift
 			    until [ "$1" = "$sep" ]
 			    do
@@ -214,16 +349,18 @@ do
 			    done
 			    shift
 			    haveEntries=t
+			    argCount $((originalArgNum - $#)) entries
 			    ;;
-	--entries|-e)	    shift
+	--entries|-e)	    originalArgNum=$#; shift
 			    until [ $# -eq 0 -o "$1" = '--' ]
 			    do
 				entries+=("$1"); shift
 			    done
 			    haveEntries=t
+			    argCount $((originalArgNum - $#)) entries
 			    ;;
 	--)		    shift; break;;
-	-[^0-9]*)	    { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
+	-[^0-9]*)	    noUnderstand; { echo "ERROR: Unknown option \"$1\"!"; echo; printUsage "$0"; } >&2; exit 2;;
 	*)		    break;
     esac
 done
@@ -236,24 +373,24 @@ typeset -a matches=()
 while [ $# -ne 0 ]
 do
     case "$1" in
-	--)			shift; break;;
+	--)			endOfOptionsAndParameters; shift; break;;
 	//)			if [ "$isFirstSelection" ]; then shift; isSubtract=t; fi
-				break
+				option selection; break
 				;;
 	${fuzzyTrigger:---})	if [ -n "$isFirstSelection" -a $# -eq 1 ]; then shift; isFuzzySelection=t; fi
-				break
+				option selection; break
 				;;
-	?(/?(-)|-)+([0-9]))	selected+=("$1"); shift;;
-	+([0-9])-+([0-9]))	eval "selected+=({${1/-/..}})"; shift;;
-	/+([0-9])-+([0-9]))	range="${1#/}"; eval "selected+=(/{${range/-/..}})"; shift;;
+	?(/?(-)|-)+([0-9]))	selected+=("$1"); shift; option selection;;
+	+([0-9])-+([0-9]))	eval "selected+=({${1/-/..}})"; shift; option selection;;
+	/+([0-9])-+([0-9]))	range="${1#/}"; eval "selected+=(/{${range/-/..}})"; shift; option selection;;
 	+([0-9])-)		if [ "$1" = '1-' ]; then echo >&2 "Cannot select all entries like this."; exit 2; fi
-				previous=$((${1%-} - 1)); eval "selected+=(/{1..$previous})"; shift
+				previous=$((${1%-} - 1)); eval "selected+=(/{1..$previous})"; shift; option selection
 				;;
 	*)			if [ -n "$matchFunction" ]; then
 				    matches+=("$1")
-				    shift
+				    shift; option selection
 				else
-				    break
+				    endOfOptionsAndParameters; break
 				fi
 				;;
     esac
@@ -346,15 +483,17 @@ else
 	local offeringsLimitation; [ "$isOfferingsLimited" ] && offeringsLimitation=" showing ${#offerings[@]} of $entryNum entries"
 	case $# in
 	    0)	;;
-	    1)	printf >&2 '%s at full list of entries; press %s%s%s to show again.\n' \
+	    1)	printf >&2 '%s at full list of %s; press %s%s%s to show again.\n' \
 		    "${prefix}${offeringsLimitation}" \
+		    "$entryNamePlural" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX"
 		;;
-	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show entries again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
+	    *)	printf >&2 '%s at filter %s\n%sPress %s%s%s to show %s again, %s%s%s or %s%s%s to leave this filter,\n%s%s%s%s to finish selecting.\n' \
 		    "${prefix}${offeringsLimitation}" \
 		    "$(printf '%s\n' "${@:1:$(($#-1))}" | surround -- "$COMMANDONSELECTED_FILTER_PREFIX" "$COMMANDONSELECTED_FILTER_SUFFIX" | joinBy - ' | ')" \
 		    "${prefix%%+([^	 ])}" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Enter "$COMMANDONSELECTED_KEY_SUFFIX" \
+		    "$entryNamePlural" \
 		    "$COMMANDONSELECTED_KEY_PREFIX" Ctrl-D "$COMMANDONSELECTED_KEY_SUFFIX" \
 		    "$COMMANDONSELECTED_SYNTAX_PREFIX" .. "$COMMANDONSELECTED_SYNTAX_SUFFIX" \
 		    "${prefix%%+([^	 ])}" \
@@ -453,9 +592,9 @@ EOF
 			isBreak=t
 			;;
 		    +([0-9]))
-			entryPlural=ies; [ ${#offerings[@]} -eq 1 ] && entryPlural=y
+			entryPlural="$entryNamePlural"; [ ${#offerings[@]} -eq 1 ] && entryPlural="$entryName"
 			filterNote=; [ ${#filters[@]} -eq 0 ] || filterNote='filtered'
-			printf >&2 'Only %d%s entr%s%s.\n' ${#offerings[@]} "${filterNote:+ }${filterNote}" "$entryPlural" "${isOfferingsLimited:+ shown}"
+			printf >&2 'Only %d%s %s%s.\n' ${#offerings[@]} "${filterNote:+ }${filterNote}" "$entryPlural" "${isOfferingsLimited:+ shown}"
 			;;
 		    ?(-)+([0-9])+( ?(-)+([0-9]))*( ).)
 			clearFilters;&
@@ -568,8 +707,8 @@ EOF
 	    isFirst=
 
 	    if [ $count -lt 1 -o $count -gt $# ]; then
-		entryPlural=ies; [ $# -eq 1 ] && entryPlural=y
-		printf >&2 'Only %d entr%s.\n' $# "$entryPlural"
+		entryPlural="$entryNamePlural"; [ $# -eq 1 ] && entryPlural="$entryName"
+		printf >&2 'Only %d %s.\n' $# "$entryPlural"
 		exit 2
 	    fi
 
@@ -629,7 +768,7 @@ fi
 [ ${#selectedEntries[@]} -eq 0 ] && exit 125
 
 if [ ! "$isMultiSelect" -a ${#selectedEntries[@]} -gt 1 ]; then
-    printf >&2 'Note: %d entries selected; ignoring all but the first.\n' "${#selectedEntries[@]}"
+    printf >&2 'Note: %d %s selected; ignoring all but the first.\n' "${#selectedEntries[@]}" "$entryNamePlural"
     selectedEntries=("${selectedEntries[0]}")
 fi
 
