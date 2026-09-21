@@ -64,67 +64,69 @@ getLongUsage()
 	    ''|config)
 		cat <<HELPTEXT
     --format=single-column|-1
-		    List one entry per line instead of the default columnar
-		    format.
-    --accept-single Accept a single available ENTRY without prompting the user.
-    --single-only   The querying stops when at least one entry has been selected
-		    (and any additional ones are ignored and a warning is
-		    printed).
+			List one entry per line instead of the default columnar
+			format.
+    --accept-single	Accept a single available ENTRY without prompting the
+			user.
+    --single-only	The querying stops when at least one entry has been
+			selected (and any additional ones are ignored and
+			a warning is printed).
 HELPTEXT
 		hadTopic=t
 		;;&
 	    ''|match)
 		cat <<HELPTEXT
     --allow-literal-match
-		    In addition to the numerical SELECTIONs, literal MATCHes can
-		    be passed as arguments (then the -- separator to any
-		    following ENTRIES is mandatory). Any entry that equals a
-		    MATCH is selected. Multiple arguments must be all MATCHes or
-		    all SELECTIONs; mixing is not allowed.
+			In addition to the numerical SELECTIONs, literal MATCHes
+			can be passed as arguments (then the -- separator to any
+			following ENTRIES is mandatory). Any entry that equals
+			a MATCH is selected. Multiple arguments must be all
+			MATCHes or all SELECTIONs; mixing is not allowed.
     --allow-glob-match
-		    In addition to the numerical SELECTIONs, MATCH globs (e.g.
-		    \?oo\*) can be passed as arguments (then the -- separator to
-		    any following ENTRIES is mandatory). Any entry that matches
-		    an (anchored, extended) glob MATCH is selected. Multiple
-		    arguments must be all MATCHes or all SELECTIONs; mixing is
-		    not allowed.
+			In addition to the numerical SELECTIONs, MATCH globs
+			(e.g. \?oo\*) can be passed as arguments (then the --
+			separator to any following ENTRIES is mandatory). Any
+			entry that matches an (anchored, extended) glob MATCH is
+			selected. Multiple arguments must be all MATCHes or all
+			SELECTIONs; mixing is not allowed.
 HELPTEXT
 		hadTopic=t
 		;;&
 	    ''|entries)
 		cat <<HELPTEXT
     --entries-separated-by|-E ; [ENTRIES ...] ;
-		    Any arguments between ; and ; (or any other separator) as
-		    entries. This alternative form allows to pass SELECTIONs at
-		    the end and prevents the user from sneaking in additional
-		    ENTRIES via "$SELECTION -- ENTRY", and therefore is the
-		    preferred form and especially useful for shell aliases.
+			Any arguments between ; and ; (or any other separator)
+			as entries. This alternative form allows to pass
+			SELECTIONs at the end and prevents the user from
+			sneaking in additional ENTRIES via
+			"$SELECTION -- ENTRY", and therefore is the preferred
+			form and especially useful for shell aliases.
     --entries|-e [ENTRIES ...]
-		    ENTRIES follow, and any SELECTIONs after that, separated by
-		    --. This is useful for a GENERATOR that produces entries and
-		    takes options and parameters instead of filtering the passed
-		    arguments, because then the
-		    GENERATOR [(option-)ENTRY ...] [-- $SELECTION ...]
-		    syntax can be used, which is more natural than
-		    GENERATOR [--] $SELECTION [...] [-- (option-)ENTRY ...]
+			ENTRIES follow, and any SELECTIONs after that, separated
+			by --. This is useful for a GENERATOR that produces
+			entries and takes options and parameters instead of
+			filtering the passed arguments, because then the
+			GENERATOR [(option-)ENTRY ...] [-- $SELECTION ...]
+			syntax can be used, which is more natural than
+			GENERATOR [--] $SELECTION [...] [-- (option-)ENTRY ...]
 HELPTEXT
 		hadTopic=t
 		;;&
 	    ''|stdin)
 		cat <<HELPTEXT
-    --stdin	    Read entries from standard input; each line is one entry;
-		    these are appended to any entries passed via
-		    --entries-separated-by.
+    --stdin		Read entries from standard input; each line is one
+			entry; these are appended to any entries passed via
+			--entries-separated-by.
 HELPTEXT
 		hadTopic=t
 		;;&
 	    ''|input)
 		cat <<HELPTEXT
     --post-filter FILTER
-		    Pass the selected entries as individual arguments to FILTER
-		    (${postFilterMarker:+either }appended${postFilterMarker:+ or replacing $postFilterMarker}), which should return
-		    each on a separate line, before these are passed to
-		    COMMANDLINE [or printed].
+			Pass the selected entries as individual arguments to
+			FILTER (${postFilterMarker:+either }appended${postFilterMarker:+ or replacing $postFilterMarker}), which should
+			return each on a separate line, before these are passed
+			to COMMANDLINE [or printed].
 HELPTEXT
 		hadTopic=t
 		;;&
@@ -147,28 +149,31 @@ HELPTEXT
 		;;&
 	    ''|ui)
 		cat <<HELPTEXT
-    --prompt|-p PROMPT
-		    Print PROMPT before showing the entries.
+    --prompt|-p PROMPT	Print PROMPT before showing the entries.
     --no-entries-message MSG
-		    Print MSG to stderr if there are no entries to choose from.
+			Print MSG to stderr if there are no entries to choose
+			from.
     --auto-selected-entry-message MSG
-		    Print MSG to stderr if a single entry has been automatically
-		    chosen; the entry itself is referenced by %s in MSG.
+			Print MSG to stderr if a single entry has been
+			automatically chosen; the entry itself is referenced by
+			%s in MSG.
     --selection-message MSG
-		    Print MSG to stderr if entries have been chosen (either
-		    interactively or through SELECTION, but not when a single
-		    entry is automatically chosen); if the number of entries is
-		    $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else, only a count
-		    is passed, both to be referenced by %s in MSG.
+			Print MSG to stderr if entries have been chosen (either
+			interactively or through SELECTION, but not when
+			a single entry is automatically chosen); if the number
+			of entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated;
+			else, only a count is passed, both to be referenced by
+			%s in MSG.
     --interactive-selection-message MSG
-		    Print MSG to stderr if entries have been chosen
-		    interactively, but not through SELECTION); if the number of
-		    entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated; else,
-		    only a count is passed, both to be referenced by %s in MSG.
+			Print MSG to stderr if entries have been chosen
+			interactively, but not through SELECTION); if the number
+			of entries is $COMMANDONSELECTED_SELECTION_MESSAGE_MAX_ENUMERATION_COUNT or less, the entries are enumerated;
+			else, only a count is passed, both to be referenced by
+			%s in MSG.
     --entry-name WHAT[,PLURAL-WHAT]
-		    Use WHAT (e.g. "line", "file", you can also pass a separate
-		    (non-regular) plural form: "entry,entries") instead of
-		    "entry" in messages.
+			Use WHAT (e.g. "line", "file", you can also pass
+			a separate (non-regular) plural form: "entry,entries")
+			instead of "entry" in messages.
 HELPTEXT
 		hadTopic=t
 		;;&
