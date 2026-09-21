@@ -2,6 +2,7 @@
 set -o pipefail
 shopt -qs extglob
 
+: ${COMMANDWITHHIDDENID_SEPARATOR_GLOB:='+([[:space:]])'}
 : ${COMMANDWITHHIDDENID_COMMAND_JOINER=;}
 : ${COMMANDWITHHIDDENID_EXEC_END=;}
 : ${COMMANDWITHHIDDENID_TITLE_MARKER='{}'}
@@ -11,7 +12,7 @@ printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: %q %s\n' "$(basename "$1")" "[-p|--piped] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${COMMANDWITHHIDDENID_EXEC_END} [--exec ...] [-?|-h|--help] ..."
+    printf 'Usage: [COMMANDWITHHIDDENID_SEPARATOR_GLOB=GLOB] %q %s\n' "$(basename "$1")" "[-p|--piped] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${COMMANDWITHHIDDENID_EXEC_END} [--exec ...] [-?|-h|--help] ..."
     echo
     printf 'Usage: %q %s\n' "$(basename "$1")" "... [-g|--generator GENERATOR] [-f|--filter ''|FILTER] [--] \"ID1 TITLE1\" [...]"
     echo
@@ -31,14 +32,14 @@ printLongUsage()
     # This is the long "man page" when launched with the help argument.
     # It is printed to stdout to allow paging with 'more'.
     cat <<HELPDESCRIPTION
-Read entries (one per line) consisting of ID + whitespace + TITLE from GENERATOR
-/ standard input / passed "ID1 TITLE1" "ID2 TITLE2" ... , split off IDs, make
-identical TITLEs unique by appending (2), (3), etc., then pass them to
-COMMANDLINE (${titleMarker:+either }appended${titleMarker:+ or replacing any $titleMarker marker}, or with -p|--piped one
-per line via standard input), and capture its output. From these supposedly
-filtered TITLEs (no output at all is also accepted; to prevent that, add a grep
-command at the end of COMMANDLINE), translate back to the corresponding IDs and
-print them one per line.
+Read entries (one per line) consisting of ID + ${COMMANDWITHHIDDENID_SEPARATOR_GLOB@Q} + TITLE
+from GENERATOR / standard input / passed "ID1 TITLE1" "ID2 TITLE2" ... , split
+off IDs, make identical TITLEs unique by appending (2), (3), etc., then pass
+them to COMMANDLINE (${titleMarker:+either }appended${titleMarker:+ or replacing any $titleMarker marker}, or with
+-p|--piped one per line via standard input), and capture its output.
+From these supposedly filtered TITLEs (no output at all is also accepted; to
+prevent that, add a grep command at the end of COMMANDLINE), translate back to
+the corresponding IDs and print them one per line.
 HELPDESCRIPTION
     echo
     printShortUsage "$1"
@@ -117,8 +118,8 @@ if [ "$entrySource" ]; then
 fi
 [ ${#entries[@]} -eq 0 ] && exit 124
 
-typeset -a ids=("${entries[@]%%+([$'\t '])*}")
-readarray -t titles < <(printf '%s\n' "${entries[@]#*+([$'\t '])}" | makeLinesUnique)
+typeset -a ids=("${entries[@]%%@(${COMMANDWITHHIDDENID_SEPARATOR_GLOB})*}")
+readarray -t titles < <(printf '%s\n' "${entries[@]#*@(${COMMANDWITHHIDDENID_SEPARATOR_GLOB})}" | makeLinesUnique)
 readarray -t duplicateIds < <(printf '%s\n' "${ids[@]}" | sort | uniq --repeated)
 if [ ${#duplicateIds[@]} -gt 0 ]; then
     printf >&2 'ERROR: Duplicate IDs: %s\n' "$(joinBy ', ' "${duplicateIds[@]}")"
