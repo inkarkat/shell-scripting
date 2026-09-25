@@ -83,6 +83,7 @@ additionalSuccessStatus=
 commands=
 betweenCommand=
 typeset -a runWithPromptArgs=()
+typeset -a commonArgs=()
 while [ $# -ne 0 ]
 do
     case "$1" in
@@ -116,9 +117,9 @@ do
 			shift; betweenCommand="$1"; shift;;
 
 	--single-success)
-			runWithPromptArgs+=("$1"); shift; isSingleSuccess=t;;
+			commonArgs+=("$1"); shift; isSingleSuccess=t;;
 	--status-99-is-noop)
-			runWithPromptArgs+=("$1"); shift; additionalSuccessStatus=99;;
+			commonArgs+=("$1"); shift; additionalSuccessStatus=99;;
 	--)		shift; break;;
 	-*)		if argCount=$(runWithPrompt --understands "$@"); then
 			    runWithPromptArgs+=("${@:1:argCount}")
@@ -199,7 +200,7 @@ case "$with" in
 		fi
 		isFirst=
 	    done
-	} | ${with:?} "${runWithPromptArgs[@]}"
+	} | ${with:?} "${commonArgs[@]}" "${runWithPromptArgs[@]}"
 	;;
     header)
 	isHeader=t;&
