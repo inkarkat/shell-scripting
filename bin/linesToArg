@@ -74,6 +74,7 @@ HELPTEXT
 progressSink=
 with=
 isRunIfEmpty=
+isSingleSuccess=
 additionalSuccessStatus=
 commands=
 betweenCommand=
@@ -107,6 +108,8 @@ do
 	--between-command)
 			shift; betweenCommand="$1"; shift;;
 
+	--single-success)
+			runWithPromptArgs+=("$1"); shift; isSingleSuccess=t;;
 	--status-99-is-noop)
 			runWithPromptArgs+=("$1"); shift; additionalSuccessStatus=99;;
 	--)		shift; break;;
@@ -208,6 +211,7 @@ case "$with" in
 	{ exec 0</dev/tty; } 2>/dev/null || exec </dev/null
 
 	status=
+	singleSuccessStatus=
 	while IFS=$'\n' <&3 read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
 	    if [ ! "$isFirst" ] && [ -n "$betweenCommand" ]; then
@@ -228,12 +232,14 @@ case "$with" in
 	    # As arguments are being read from stdin, reconnect it directly to the terminal
 	    # in case the COMMAND(s) need input (e.g. confirmations).
 	    eval "$interpolatedCommands" "$quotedLine"; exitStatus=$?
-	    if [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
+	    if [ $exitStatus -eq 0 ] && [ "$isSingleSuccess" ]; then
+		singleSuccessStatus=0
+	    elif [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
 		status=$exitStatus
 	    fi
 	    isFirst=
 	done
-	exit ${status:-${additionalSuccessStatus:-0}}
+	exit ${singleSuccessStatus:-${status:-${additionalSuccessStatus:-0}}}
 	;;
     *)	printf >&2 'ASSERT: Invalid strategy: %s\n' "$with"; exit 3;;
 esac

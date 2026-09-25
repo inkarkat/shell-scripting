@@ -78,6 +78,7 @@ redirSuffix=
 progressSink=
 with=
 isRunIfEmpty=
+isSingleSuccess=
 additionalSuccessStatus=
 commands=
 betweenCommand=
@@ -114,6 +115,8 @@ do
 	--between-command)
 			shift; betweenCommand="$1"; shift;;
 
+	--single-success)
+			runWithPromptArgs+=("$1"); shift; isSingleSuccess=t;;
 	--status-99-is-noop)
 			runWithPromptArgs+=("$1"); shift; additionalSuccessStatus=99;;
 	--)		shift; break;;
@@ -213,6 +216,7 @@ case "$with" in
 	fi
 
 	status=
+	singleSuccessStatus=
 	while IFS=$'\n' read -r line || [ -n "$line" ] || { [ "$isRunIfEmpty" ] && [ "$isFirst" ]; }
 	do
 	    originalLine="$line"
@@ -232,7 +236,9 @@ case "$with" in
 	    [ "$interpolatedCommands" = "$commands" ] || quotedLine=''
 
 	    eval "commandOutput=\"\$({ $interpolatedCommands $quotedLine; } ${redirPrefix})\" ${redirSuffix}"; exitStatus=$?
-	    if [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
+	    if [ $exitStatus -eq 0 ] && [ "$isSingleSuccess" ]; then
+		singleSuccessStatus=0
+	    elif [ $exitStatus -gt ${status:--1} -a $exitStatus -ne ${additionalSuccessStatus:--1} ]; then
 		status=$exitStatus
 	    fi
 	    isFirst=
@@ -243,7 +249,7 @@ case "$with" in
 		printf '%s%s%s\n' "$commandOutput" "$AUGMENTLINES_SEPARATOR" "$originalLine"
 	    fi
 	done
-	exit ${status:-${additionalSuccessStatus:-0}}
+	exit ${singleSuccessStatus:-${status:-${additionalSuccessStatus:-0}}}
 	;;
     *)	printf >&2 'ASSERT: Invalid strategy: %s\n' "$with"; exit 3;;
 esac
