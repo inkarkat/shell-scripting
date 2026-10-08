@@ -3,12 +3,13 @@ set -o pipefail
 
 : ${MAPSELECTEDLINES_COMMAND_JOINER=;}
 : ${MAPSELECTEDLINES_EXEC_END=;}
+: ${MAPSELECTEDLINES_LINES_END=;}
 
 printShortUsage()
 {
     # Note: short followed by long option; if the user knows the short one, she can
     # skim the long one.
-    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "-n|--select-line-number NR|-N|--skip-line-number NR|-l|--select-line LINE|-L|--skip-line LINE|-m|--select-match PATTERN|-M|--skip-match PATTERN [...] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${MAPSELECTEDLINES_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
+    printf 'Usage: cat FILE [...] | %q %s\n' "$(basename "$1")" "-n|--select-line-number NR|-N|--skip-line-number NR|-l|--select-line LINE|-L|--skip-line LINE|--select-lines LINE [...] ${MAPSELECTEDLINES_LINES_END}|--skip-lines LINE [...] ${MAPSELECTEDLINES_LINES_END}|-m|--select-match PATTERN|-M|--skip-match PATTERN [...] -c|--command \"COMMANDLINE\" [-c ...] | --exec SIMPLECOMMAND [...] ${MAPSELECTEDLINES_EXEC_END} [--exec ...] | [--] SIMPLECOMMAND [...] [-?|-h|--help]"
 }
 printUsage()
 {
@@ -40,6 +41,14 @@ HELPDESCRIPTION
 			Select the line LINE for output.
     --skip-line|-L LINE	All lines except LINE are selected for output.
 			Skips take precedence over selects.
+    --select-lines LINE [...] ${MAPSELECTEDLINES_LINES_END}
+			Select the following LINE(s); i.e. all following
+			arguments until an argument consisting of '${MAPSELECTEDLINES_LINES_END}' is
+			encountered.
+    --skip-lines LINE [...] ${MAPSELECTEDLINES_LINES_END}
+			All lines except the following LINE(s) are
+			selected; i.e. all following arguments until an argument
+			consisting of '${MAPSELECTEDLINES_LINES_END}' is encountered.
     --select-match|-m PATTERN
 			Select all lines that match the regular expression
 			PATTERN for output.
@@ -84,6 +93,39 @@ do
 			shift; selectedLines["${1:-$'\n'}"]=t; shift; hasSelection=t;;
 	--skip-line|-L)
 			shift; skippedLines["${1:-$'\n'}"]=t; shift;;
+	--select-lines)	shift
+			while [ $# -gt 0 -a "$1" != "$MAPSELECTEDLINES_LINES_END" ]
+			do
+			    selectedLines["${1:-$'\n'}"]=t
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --select-lines must be concluded with '${MAPSELECTEDLINES_LINES_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			if [ ${#selectedLines[@]} -eq 0 ]; then
+			    echo 'ERROR: --select-lines must be followed by at least one LINE.'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			hasSelection=t
+			;;
+	--skip-lines)	shift
+			while [ $# -gt 0 -a "$1" != "$MAPSELECTEDLINES_LINES_END" ]
+			do
+			    skippedLines["${1:-$'\n'}"]=t
+			    shift
+			done
+			if [ $# -eq 0 ]; then
+			    echo "ERROR: --select-lines must be concluded with '${MAPSELECTEDLINES_LINES_END}'"; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			shift
+			if [ ${#skippedLines[@]} -eq 0 ]; then
+			    echo 'ERROR: --skip-lines must be followed by at least one LINE.'; echo; printUsage "$0"
+			    exit 2
+			fi >&2
+			;;
 	--select-match|-m)
 			shift; selectedMatches["${1:?}"]=t; shift; hasSelection=t;;
 	--skip-match|-M)

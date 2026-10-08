@@ -58,6 +58,14 @@ QUUX
 EOF
 }
 
+@test "skip a set of lines by content" {
+    run -0 mapSelectedLines --skip-lines baz foo \; "${UPPERCASE_COMMAND[@]}" <<<"$INPUT"
+    assert_output - <<'EOF'
+BAR
+QUUX
+EOF
+}
+
 @test "skip multiple lines by content, one not present" {
     run -0 mapSelectedLines --skip-line baz --skip-line doesNotExist --skip-line foo "${UPPERCASE_COMMAND[@]}" <<<"$INPUT"
     assert_output - <<'EOF'

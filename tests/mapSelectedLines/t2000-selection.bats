@@ -51,6 +51,14 @@ BAZ
 EOF
 }
 
+@test "select a set of lines by content" {
+    run -0 mapSelectedLines --select-lines baz foo \; "${UPPERCASE_COMMAND[@]}" <<<"$INPUT"
+    assert_output - <<'EOF'
+FOO
+BAZ
+EOF
+}
+
 @test "select multiple lines by content, one not present" {
     run -0 mapSelectedLines --select-line baz --select-line doesNotExist --select-line foo "${UPPERCASE_COMMAND[@]}" <<<"$INPUT"
     assert_output - <<'EOF'
