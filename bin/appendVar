@@ -1,0 +1,31 @@
+#!/bin/bash
+
+printUsage()
+{
+    cat <<HELPTEXT
+Invoke the passed SIMPLECOMMAND with the value of the passed VAR as its last
+argument. The VAR must be set in the environment (but can be empty).
+HELPTEXT
+    echo
+    printf 'Usage: VAR=VALUE %q VAR %s\n' "$(basename "$1")" '[--] SIMPLECOMMAND [...] [-?|-h|--help]'
+    printf 'Usage: export VAR=VALUE; %q VAR %s\n' "$(basename "$1")" '[--] SIMPLECOMMAND [...] [-?|-h|--help]'
+}
+
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+esac
+
+varName="${1:?}"; shift
+
+case "$1" in
+    --help|-h|-\?)	shift; printUsage "$0"; exit 0;;
+    --)			shift;;
+esac
+
+if [ ! -v "$varName" ]; then
+    printf >&2 "ERROR: Variable '%s' is not set.\\n" "$varName"
+    exit 2
+fi
+
+printf -v quotedSimpleCommand '%q ' "$@" "${!varName}"
+eval "${quotedSimpleCommand% }"
